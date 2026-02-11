@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>La Mie Dorée — Boulangerie Artisanale Paris</title>
+    <meta name="description" content="Boulangerie artisanale au cœur de Paris. Pains au levain, viennoiseries, pâtisseries maison. Fait main chaque jour depuis 1987.">
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar" id="navbar">
+        <div class="container nav-container">
+            <a href="#" class="logo">
+                <span class="logo-icon">🌾</span>
+                <span class="logo-text">La Mie Dorée</span>
+            </a>
+            <button class="nav-toggle" id="navToggle" aria-label="Menu">
+                <span></span>
+                <span></span>
+                <span></span>
+            </button>
+            <ul class="nav-links" id="navLinks">
+                <li><a href="#accueil">Accueil</a></li>
+                <li><a href="#histoire">Notre Histoire</a></li>
+                <li><a href="#produits">Nos Produits</a></li>
+                <li><a href="#temoignages">Avis</a></li>
+                <li><a href="#contact" class="btn btn-nav">Nous Trouver</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <header class="hero" id="accueil">
+        <div class="hero-overlay"></div>
+        <div class="container hero-content">
+            <span class="hero-badge fade-in">Artisan Boulanger depuis 1987</span>
+            <h1 class="fade-in">Le goût authentique<br>du pain fait main</h1>
+            <p class="hero-subtitle fade-in">Chaque matin, nos artisans perpétuent la tradition du pain au levain naturel, des viennoiseries pur beurre et des pâtisseries faites maison.</p>
+            <div class="hero-buttons fade-in">
+                <a href="#produits" class="btn btn-primary">Découvrir nos produits</a>
+                <a href="#contact" class="btn btn-outline">Nous rendre visite</a>
+            </div>
+        </div>
+        <div class="hero-scroll">
+            <span>Défiler</span>
+            <div class="scroll-line"></div>
+        </div>
+    </header>
+
+    <!-- Stats Bar -->
+    <section class="stats-bar">
+        <div class="container stats-grid">
+            <div class="stat-item">
+                <span class="stat-number" data-target="37">0</span>
+                <span class="stat-label">Années d'expérience</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-number" data-target="15">0</span>
+                <span class="stat-label">Variétés de pains</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-number" data-target="500">0</span>
+                <span class="stat-label">Clients par jour</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-number" data-target="6">0</span>
+                <span class="stat-label">Artisans boulangers</span>
+            </div>
+        </div>
+    </section>
+
+    <!-- About Section -->
+    <section class="section about" id="histoire">
+        <div class="container">
+            <div class="about-grid">
+                <div class="about-images">
+                    <div class="about-img about-img-1">
+                        <div class="img-placeholder" data-label="Notre fournil">
+                            <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+                                <rect width="200" height="200" fill="#d4a574" rx="8"/>
+                                <circle cx="100" cy="80" r="35" fill="#c4956a" opacity="0.7"/>
+                                <rect x="40" y="120" width="120" height="50" rx="25" fill="#b8845a" opacity="0.6"/>
+                                <text x="100" y="185" text-anchor="middle" fill="#fff" font-size="12" font-family="Inter">Notre fournil</text>
+                            </svg>
+                        </div>
+                    </div>
+                    <div class="about-img about-img-2">
+                        <div class="img-placeholder" data-label="Fait main">
+                            <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+                                <rect width="200" height="200" fill="#c4956a" rx="8"/>
+                                <ellipse cx="100" cy="100" rx="60" ry="40" fill="#b8845a" opacity="0.6"/>
+                                <path d="M60 90 Q100 60 140 90" stroke="#a07050" stroke-width="3" fill="none"/>
+                                <text x="100" y="185" text-anchor="middle" fill="#fff" font-size="12" font-family="Inter">Fait main</text>
+                            </svg>
+                        </div>
+                    </div>
+                    <div class="about-badge">
+                        <span class="about-badge-number">100%</span>
+                        <span class="about-badge-text">Artisanal</span>
+                    </div>
+                </div>
+                <div class="about-content">
+                    <span class="section-tag">Notre Histoire</span>
+                    <h2>Trois générations de passion</h2>
+                    <p class="about-lead">Fondée en 1987 par <strong>Marcel Dupont</strong> dans le 11ème arrondissement de Paris, La Mie Dorée est née d'une conviction simple : le bon pain mérite du temps, du savoir-faire et les meilleurs ingrédients.</p>
+                    <p>Aujourd'hui dirigée par sa petite-fille <strong>Camille Dupont</strong>, la boulangerie perpétue les mêmes gestes, la même exigence. Notre levain naturel, entretenu depuis l'ouverture, donne à nos pains ce goût inimitable qui fait revenir nos clients depuis trois décennies.</p>
+                    <div class="about-features">
+                        <div class="about-feature">
+                            <div class="feature-icon">✦</div>
+                            <div>
+                                <strong>Levain naturel</strong>
+                                <p>Cultivé et nourri chaque jour depuis 1987</p>
+                            </div>
+                        </div>
+                        <div class="about-feature">
+                            <div class="feature-icon">✦</div>
+                            <div>
+                                <strong>Farines bio françaises</strong>
+                                <p>Sélectionnées chez des meuniers artisanaux</p>
+                            </div>
+                        </div>
+                        <div class="about-feature">
+                            <div class="feature-icon">✦</div>
+                            <div>
+                                <strong>Beurre AOP Charentes-Poitou</strong>
+                                <p>Pour des viennoiseries d'exception</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Products Section -->
+    <section class="section products" id="produits">
+        <div class="container">
+            <div class="section-header">
+                <span class="section-tag">Nos Produits</span>
+                <h2>Faits main, chaque jour</h2>
+                <p>De la tradition boulangère aux créations pâtissières, découvrez notre sélection artisanale.</p>
+            </div>
+
+            <div class="product-tabs">
+                <button class="tab-btn active" data-tab="pains">Pains</button>
+                <button class="tab-btn" data-tab="viennoiseries">Viennoiseries</button>
+                <button class="tab-btn" data-tab="patisseries">Pâtisseries</button>
+                <button class="tab-btn" data-tab="traiteur">Traiteur</button>
+            </div>
+
+            <div class="product-grid" id="productGrid">
+                <!-- Pains -->
+                <div class="product-card" data-category="pains">
+                    <div class="product-img">
+                        <svg viewBox="0 0 300 220" xmlns="http://www.w3.org/2000/svg">
+                            <rect width="300" height="220" fill="#f5e6d3" rx="12"/>
+                            <ellipse cx="150" cy="110" rx="90" ry="45" fill="#d4a574"/>
+                            <path d="M80 100 Q150 70 220 100" stroke="#c4956a" stroke-width="2" fill="none"/>
+                            <path d="M90 110 Q150 85 210 110" stroke="#c4956a" stroke-width="1.5" fill="none"/>
+                        </svg>
+                    </div>
+                    <div class="product-info">
+                        <h3>Pain au Levain Tradition</h3>
+                        <p>Farine T65 bio, levain naturel, fermentation longue 24h. Croûte croustillante, mie alvéolée.</p>
+                        <div class="product-footer">
+                            <span class="product-price">4,20 €</span>
+                            <span class="product-weight">800g</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="product-card" data-category="pains">
+                    <div class="product-img">
+                        <svg viewBox="0 0 300 220" xmlns="http://www.w3.org/2000/svg">
+                            <rect width="300" height="220" fill="#f5e6d3" rx="12"/>
+                            <ellipse cx="150" cy="110" rx="80" ry="50" fill="#8B6914"/>
+                            <ellipse cx="150" cy="100" rx="75" ry="40" fill="#a07840"/>
+                        </svg>
+                    </div>
+                    <div class="product-info">
+                        <h3>Pain de Campagne</h3>
+                        <p>Mélange de farines de blé et seigle. Goût rustique et mie dense, idéal pour les fromages.</p>
+                        <div class="product-footer">
+                            <span class="product-price">4,80 €</span>
+                            <span class="product-weight">1kg</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="product-card" data-category="pains">
+                    <div class="product-img">
+                        <svg viewBox="0 0 300 220" xmlns="http://www.w3.org/2000/svg">
+                            <rect width="300" height="220" fill="#f5e6d3" rx="12"/>
+                            <rect x="50" y="75" width="200" height="70" rx="35" fill="#d4a574"/>
+                            <line x1="100" y1="85" x2="100" y2="135" stroke="#c4956a" stroke-width="1.5"/>
+                            <line x1="140" y1="85" x2="140" y2="135" stroke="#c4956a" stroke-width="1.5"/>
+                            <line x1="180" y1="85" x2="180" y2="135" stroke="#c4956a" stroke-width="1.5"/>
+                        </svg>
+                    </div>
+                    <div class="product-info">
+                        <h3>Baguette Tradition</h3>
+                        <p>Notre baguette signature. Croûte dorée et craquante, mie crémeuse. Pétrissage lent.</p>
+                        <div class="product-footer">
+                            <span class="product-price">1,30 €</span>
+                            <span class="product-weight">250g</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Viennoiseries -->
+                <div class="product-card" data-category="viennoiseries">
+                    <div class="product-img">
+                        <svg viewBox="0 0 300 220" xmlns="http://www.w3.org/2000/svg">
+                            <rect width="300" height="220" fill="#fef3e2" rx="12"/>
+                            <path d="M80 140 Q150 50 220 140" fill="#d4a574"/>
+                            <path d="M90 135 Q150 60 210 135" fill="#e0b88a" opacity="0.6"/>
+                        </svg>
+                    </div>
+                    <div class="product-info">
+                        <h3>Croissant Pur Beurre</h3>
+                        <p>Beurre AOP Charentes-Poitou, tourage traditionnel. Feuilletage aérien et doré.</p>
+                        <div class="product-footer">
+                            <span class="product-price">1,40 €</span>
+                            <span class="product-weight">70g</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="product-card" data-category="viennoiseries">
+                    <div class="product-img">
+                        <svg viewBox="0 0 300 220" xmlns="http://www.w3.org/2000/svg">
+                            <rect width="300" height="220" fill="#fef3e2" rx="12"/>
+                            <rect x="80" y="70" width="140" height="80" rx="12" fill="#d4a574"/>
+                            <rect x="90" y="95" width="120" height="30" rx="4" fill="#6B3A2A" opacity="0.7"/>
+                        </svg>
+                    </div>
+                    <div class="product-info">
+                        <h3>Pain au Chocolat</h3>
+                        <p>Deux barres de chocolat noir Valrhona 64% enrobées d'une pâte feuilletée pur beurre.</p>
+                        <div class="product-footer">
+                            <span class="product-price">1,60 €</span>
+                            <span class="product-weight">80g</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="product-card" data-category="viennoiseries">
+                    <div class="product-img">
+                        <svg viewBox="0 0 300 220" xmlns="http://www.w3.org/2000/svg">
+                            <rect width="300" height="220" fill="#fef3e2" rx="12"/>
+                            <ellipse cx="150" cy="120" rx="70" ry="50" fill="#d4a574"/>
+                            <ellipse cx="150" cy="105" rx="50" ry="20" fill="#e8c99b" opacity="0.7"/>
+                            <circle cx="130" cy="105" r="5" fill="#8B4513" opacity="0.5"/>
+                            <circle cx="150" cy="100" r="4" fill="#8B4513" opacity="0.5"/>
+                            <circle cx="165" cy="107" r="5" fill="#8B4513" opacity="0.5"/>
+                        </svg>
+                    </div>
+                    <div class="product-info">
+                        <h3>Brioche aux Pépites</h3>
+                        <p>Brioche moelleuse au beurre parsemée de pépites de chocolat. Le goûter parfait.</p>
+                        <div class="product-footer">
+                            <span class="product-price">3,50 €</span>
+                            <span class="product-weight">350g</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Pâtisseries -->
+                <div class="product-card" data-category="patisseries">
+                    <div class="product-img">
+                        <svg viewBox="0 0 300 220" xmlns="http://www.w3.org/2000/svg">
+                            <rect width="300" height="220" fill="#fdf0f5" rx="12"/>
+                            <rect x="75" y="100" width="150" height="60" rx="8" fill="#d4a574"/>
+                            <rect x="75" y="90" width="150" height="30" rx="4" fill="#f5c6d0"/>
+                            <circle cx="110" cy="85" r="8" fill="#e74c6f" opacity="0.6"/>
+                            <circle cx="150" cy="82" r="8" fill="#e74c6f" opacity="0.6"/>
+                            <circle cx="190" cy="85" r="8" fill="#e74c6f" opacity="0.6"/>
+                        </svg>
+                    </div>
+                    <div class="product-info">
+                        <h3>Tarte aux Fraises</h3>
+                        <p>Pâte sablée, crème pâtissière vanille bourbon, fraises fraîches de saison.</p>
+                        <div class="product-footer">
+                            <span class="product-price">24,00 €</span>
+                            <span class="product-weight">6 parts</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="product-card" data-category="patisseries">
+                    <div class="product-img">
+                        <svg viewBox="0 0 300 220" xmlns="http://www.w3.org/2000/svg">
+                            <rect width="300" height="220" fill="#f0ebe6" rx="12"/>
+                            <rect x="85" y="80" width="130" height="80" rx="6" fill="#6B3A2A"/>
+                            <rect x="85" y="80" width="130" height="20" rx="4" fill="#8B5E3C"/>
+                            <rect x="85" y="140" width="130" height="10" fill="#d4a574" opacity="0.5"/>
+                        </svg>
+                    </div>
+                    <div class="product-info">
+                        <h3>Opéra</h3>
+                        <p>Biscuit joconde, crème au beurre café, ganache chocolat noir. Un classique revisité.</p>
+                        <div class="product-footer">
+                            <span class="product-price">28,00 €</span>
+                            <span class="product-weight">8 parts</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="product-card" data-category="patisseries">
+                    <div class="product-img">
+                        <svg viewBox="0 0 300 220" xmlns="http://www.w3.org/2000/svg">
+                            <rect width="300" height="220" fill="#fffde7" rx="12"/>
+                            <circle cx="150" cy="110" r="55" fill="#f5e6a0"/>
+                            <circle cx="150" cy="110" r="40" fill="#f0d860"/>
+                            <circle cx="150" cy="110" r="15" fill="#e6c430" opacity="0.7"/>
+                        </svg>
+                    </div>
+                    <div class="product-info">
+                        <h3>Tarte au Citron Meringuée</h3>
+                        <p>Pâte sucrée, crème citron de Menton, meringue italienne torchée. Vif et fondant.</p>
+                        <div class="product-footer">
+                            <span class="product-price">22,00 €</span>
+                            <span class="product-weight">6 parts</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Traiteur -->
+                <div class="product-card" data-category="traiteur">
+                    <div class="product-img">
+                        <svg viewBox="0 0 300 220" xmlns="http://www.w3.org/2000/svg">
+                            <rect width="300" height="220" fill="#e8f5e9" rx="12"/>
+                            <rect x="70" y="60" width="160" height="100" rx="8" fill="#d4a574"/>
+                            <circle cx="120" cy="100" r="15" fill="#e74c3c" opacity="0.5"/>
+                            <circle cx="160" cy="95" r="12" fill="#27ae60" opacity="0.5"/>
+                            <circle cx="190" cy="105" r="10" fill="#f39c12" opacity="0.5"/>
+                        </svg>
+                    </div>
+                    <div class="product-info">
+                        <h3>Quiche Lorraine</h3>
+                        <p>Pâte brisée maison, lardons fumés, gruyère AOP, appareil crémeux aux œufs frais.</p>
+                        <div class="product-footer">
+                            <span class="product-price">16,00 €</span>
+                            <span class="product-weight">4-6 parts</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="product-card" data-category="traiteur">
+                    <div class="product-img">
+                        <svg viewBox="0 0 300 220" xmlns="http://www.w3.org/2000/svg">
+                            <rect width="300" height="220" fill="#fff8e1" rx="12"/>
+                            <rect x="60" y="80" width="180" height="60" rx="30" fill="#d4a574"/>
+                            <rect x="80" y="95" width="140" height="30" rx="4" fill="#e8c99b"/>
+                            <rect x="90" y="100" width="30" height="20" rx="2" fill="#e74c3c" opacity="0.4"/>
+                            <rect x="125" y="100" width="50" height="20" rx="2" fill="#27ae60" opacity="0.4"/>
+                        </svg>
+                    </div>
+                    <div class="product-info">
+                        <h3>Sandwich Jambon-Beurre</h3>
+                        <p>Demi-baguette tradition, jambon blanc Label Rouge, beurre demi-sel, cornichons.</p>
+                        <div class="product-footer">
+                            <span class="product-price">5,50 €</span>
+                            <span class="product-weight">Pièce</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="product-card" data-category="traiteur">
+                    <div class="product-img">
+                        <svg viewBox="0 0 300 220" xmlns="http://www.w3.org/2000/svg">
+                            <rect width="300" height="220" fill="#fce4ec" rx="12"/>
+                            <rect x="90" y="65" width="120" height="90" rx="8" fill="#d4a574"/>
+                            <ellipse cx="150" cy="90" rx="40" ry="15" fill="#e8c99b" opacity="0.7"/>
+                            <rect x="100" y="110" width="100" height="15" rx="2" fill="#c0392b" opacity="0.3"/>
+                        </svg>
+                    </div>
+                    <div class="product-info">
+                        <h3>Croque-Monsieur</h3>
+                        <p>Pain de mie maison, jambon, béchamel gratinée, emmental. Servi chaud.</p>
+                        <div class="product-footer">
+                            <span class="product-price">6,00 €</span>
+                            <span class="product-weight">Pièce</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Testimonials -->
+    <section class="section testimonials" id="temoignages">
+        <div class="container">
+            <div class="section-header">
+                <span class="section-tag">Témoignages</span>
+                <h2>Ce que disent nos clients</h2>
+            </div>
+            <div class="testimonial-grid">
+                <div class="testimonial-card">
+                    <div class="testimonial-stars">★★★★★</div>
+                    <p>"La meilleure baguette de Paris, sans exagération. Depuis que j'ai découvert La Mie Dorée, impossible d'aller ailleurs. Le pain au levain est une merveille."</p>
+                    <div class="testimonial-author">
+                        <div class="author-avatar">SL</div>
+                        <div>
+                            <strong>Sophie Laurent</strong>
+                            <span>Cliente depuis 2015</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="testimonial-card featured">
+                    <div class="testimonial-stars">★★★★★</div>
+                    <p>"Nous commandons ici pour tous nos événements d'entreprise. La qualité est constante, le service impeccable. Les croissants disparaissent en quelques minutes !"</p>
+                    <div class="testimonial-author">
+                        <div class="author-avatar">MB</div>
+                        <div>
+                            <strong>Marc Beaumont</strong>
+                            <span>Directeur, Studio Créatif B.</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="testimonial-card">
+                    <div class="testimonial-stars">★★★★★</div>
+                    <p>"Ma fille est intolérante au gluten et ils proposent toujours des alternatives. Une boulangerie qui pense à tout le monde, c'est rare et précieux."</p>
+                    <div class="testimonial-author">
+                        <div class="author-avatar">AN</div>
+                        <div>
+                            <strong>Amina Nakouri</strong>
+                            <span>Cliente depuis 2019</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA Section -->
+    <section class="cta-section">
+        <div class="container cta-content">
+            <h2>Commandes spéciales & événements</h2>
+            <p>Mariages, anniversaires, séminaires d'entreprise... Nous réalisons vos commandes sur mesure avec le même soin artisanal.</p>
+            <a href="#contact" class="btn btn-primary btn-lg">Demander un devis</a>
+        </div>
+    </section>
+
+    <!-- Contact Section -->
+    <section class="section contact" id="contact">
+        <div class="container">
+            <div class="section-header">
+                <span class="section-tag">Contact</span>
+                <h2>Venez nous voir</h2>
+            </div>
+            <div class="contact-grid">
+                <div class="contact-info">
+                    <div class="contact-card">
+                        <div class="contact-icon">📍</div>
+                        <div>
+                            <h3>Adresse</h3>
+                            <p>42 Rue Oberkampf<br>75011 Paris, France</p>
+                        </div>
+                    </div>
+                    <div class="contact-card">
+                        <div class="contact-icon">🕐</div>
+                        <div>
+                            <h3>Horaires</h3>
+                            <p>Lun - Sam : 6h30 - 20h00<br>Dimanche : 7h00 - 13h00<br><em>Fermé le mercredi</em></p>
+                        </div>
+                    </div>
+                    <div class="contact-card">
+                        <div class="contact-icon">📞</div>
+                        <div>
+                            <h3>Téléphone</h3>
+                            <p>01 43 57 12 34</p>
+                        </div>
+                    </div>
+                    <div class="contact-card">
+                        <div class="contact-icon">✉️</div>
+                        <div>
+                            <h3>Email</h3>
+                            <p>contact@lamiedoree.fr</p>
+                        </div>
+                    </div>
+                </div>
+                <form class="contact-form" id="contactForm">
+                    <h3>Envoyez-nous un message</h3>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="name">Nom complet</label>
+                            <input type="text" id="name" name="name" required placeholder="Votre nom">
+                        </div>
+                        <div class="form-group">
+                            <label for="email">Email</label>
+                            <input type="email" id="email" name="email" required placeholder="votre@email.com">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="subject">Sujet</label>
+                        <select id="subject" name="subject">
+                            <option value="">Choisir un sujet...</option>
+                            <option value="commande">Commande spéciale</option>
+                            <option value="evenement">Événement</option>
+                            <option value="info">Renseignement</option>
+                            <option value="autre">Autre</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="message">Message</label>
+                        <textarea id="message" name="message" rows="5" required placeholder="Votre message..."></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-full">Envoyer le message</button>
+                </form>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-grid">
+                <div class="footer-brand">
+                    <a href="#" class="logo">
+                        <span class="logo-icon">🌾</span>
+                        <span class="logo-text">La Mie Dorée</span>
+                    </a>
+                    <p>Boulangerie artisanale au cœur du 11ème arrondissement. Trois générations de passion pour le bon pain.</p>
+                </div>
+                <div class="footer-links">
+                    <h4>Navigation</h4>
+                    <ul>
+                        <li><a href="#accueil">Accueil</a></li>
+                        <li><a href="#histoire">Notre Histoire</a></li>
+                        <li><a href="#produits">Nos Produits</a></li>
+                        <li><a href="#temoignages">Avis Clients</a></li>
+                        <li><a href="#contact">Contact</a></li>
+                    </ul>
+                </div>
+                <div class="footer-links">
+                    <h4>Informations</h4>
+                    <ul>
+                        <li><a href="#">Mentions légales</a></li>
+                        <li><a href="#">Politique de confidentialité</a></li>
+                        <li><a href="#">Conditions générales</a></li>
+                        <li><a href="#">Plan du site</a></li>
+                    </ul>
+                </div>
+                <div class="footer-social">
+                    <h4>Suivez-nous</h4>
+                    <div class="social-links">
+                        <a href="#" class="social-link" aria-label="Instagram">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="5"/><circle cx="17.5" cy="6.5" r="1.5"/></svg>
+                        </a>
+                        <a href="#" class="social-link" aria-label="Facebook">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg>
+                        </a>
+                        <a href="#" class="social-link" aria-label="Twitter">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 4s-.7 2.1-2 3.4c1.6 10-9.4 17.3-18 11.6 2.2.1 4.4-.6 6-2C3 15.5.5 9.6 3 5c2.2 2.6 5.6 4.1 9 4-.9-4.2 4-6.6 7-3.8 1.1 0 3-1.2 3-1.2z"/></svg>
+                        </a>
+                    </div>
+                    <div class="footer-newsletter">
+                        <p>Recevez nos actualités</p>
+                        <form class="newsletter-form">
+                            <input type="email" placeholder="votre@email.com" aria-label="Email pour newsletter">
+                            <button type="submit" class="btn btn-primary">OK</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2024 La Mie Dorée. Tous droits réservés. Fait avec amour et farine.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="js/main.js"></script>
+</body>
+</html>
