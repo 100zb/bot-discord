@@ -4,8 +4,10 @@ import discord
 from discord.ext import commands
 from dotenv import load_dotenv
 
-# Charger les variables d'environnement (fichier .env en local, variables Railway en ligne)
-load_dotenv()
+# Charger le token depuis un fichier .env ou TOKEN.env placé à côté de ce fichier
+DOSSIER = os.path.dirname(os.path.abspath(__file__))
+for fichier in ('.env', 'TOKEN.env', '.env.txt', 'TOKEN.env.txt'):
+    load_dotenv(os.path.join(DOSSIER, fichier))
 
 # Noms utilisés par le bot (tu peux les changer ici)
 NOM_CATEGORIE = "🔊 Vocaux"
@@ -126,9 +128,10 @@ async def on_voice_state_update(member, before, after):
 
 # Lancer le bot
 if __name__ == "__main__":
-    TOKEN = os.getenv('TOKEN')
-    if TOKEN is None:
+    TOKEN = (os.getenv('TOKEN') or '').strip().strip('"').strip("'")
+    if not TOKEN:
         print("❌ ERREUR: Le token n'est pas configuré!")
-        print("Ajoute la variable TOKEN dans les variables d'environnement de Railway")
+        print(f"Crée un fichier .env dans {DOSSIER} avec la ligne : TOKEN=ton_token")
+        print("Fichiers trouvés dans ce dossier :", sorted(os.listdir(DOSSIER)))
     else:
         bot.run(TOKEN)
