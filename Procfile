@@ -1,1 +1,1 @@
-worker: python bot_discord.py
+worker: python bot_vocal.py
