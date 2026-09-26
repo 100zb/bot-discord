@@ -138,6 +138,7 @@ async def on_voice_state_update(member, before, after):
                 nouveau = await member.guild.create_voice_channel(nom, category=categorie)
         except discord.HTTPException as e:
             print(f"Impossible de créer le vocal pour {member}: {e}")
+            print("➡️ Vérifie que le rôle du bot a « Voir », « Gérer les salons » et « Déplacer des membres » dans cette catégorie")
             return
 
         DONNEES['vocaux_temporaires'].append(nouveau.id)
@@ -146,8 +147,9 @@ async def on_voice_state_update(member, before, after):
         try:
             await member.move_to(nouveau)
             print(f"Vocal créé pour {member}")
-        except discord.HTTPException:
-            # Il est parti avant d'être déplacé : on nettoie
+        except discord.HTTPException as e:
+            # Il est parti avant d'être déplacé, ou il manque « Déplacer des membres » : on nettoie
+            print(f"Impossible de déplacer {member} dans son vocal: {e}")
             await supprimer_vocal(nouveau)
             return
 
