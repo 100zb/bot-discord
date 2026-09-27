@@ -24,6 +24,17 @@ intents.voice_states = True
 bot = commands.Bot(command_prefix='!', intents=intents)
 
 
+class ReconnexionRapide(discord.backoff.ExponentialBackoff):
+    """Si la connexion à Discord coupe (souvent un souci réseau de l'hébergeur),
+    on réessaie au maximum toutes les 30 secondes au lieu d'attendre jusqu'à 17 minutes."""
+
+    def delay(self):
+        return min(super().delay(), 30.0)
+
+
+discord.client.ExponentialBackoff = ReconnexionRapide
+
+
 def charger_donnees():
     try:
         with open(FICHIER_DONNEES, encoding='utf-8') as f:
