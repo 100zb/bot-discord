@@ -45,6 +45,7 @@ def charger_donnees():
     donnees.setdefault('salons_creation', {})  # id du serveur -> id du salon « Créer un vocal »
     donnees.setdefault('vocaux_temporaires', [])  # ids des vocaux créés par le bot
     donnees.setdefault('salons_poemes', {})  # id du serveur -> id du salon des poèmes
+    donnees.setdefault('salons_logs_poemes', {})  # id du serveur -> id du salon privé des modos
     return donnees
 
 
@@ -177,7 +178,8 @@ async def on_voice_state_update(member, before, after):
 
 
 # ---------------------------------------------------------------------------
-# Poèmes anonymes : /poeme ouvre un formulaire, le bot poste le poème sans auteur
+# Poèmes anonymes : /poeme ouvre un formulaire, le bot poste le poème sans auteur.
+# L'auteur est envoyé uniquement dans un salon privé des modos (/salon_logs_poemes).
 # ---------------------------------------------------------------------------
 
 DELAI_ENTRE_POEMES = 5 * 60  # secondes entre deux poèmes d'une même personne (anti-spam)
@@ -210,7 +212,7 @@ class FormulairePoeme(discord.ui.Modal, title="Envoyer un poème anonyme"):
         embed.set_footer(text="✒️ Poème anonyme • envoie le tien avec /poeme")
 
         try:
-            await salon.send(embed=embed)
+            message = await salon.send(embed=embed)
         except discord.HTTPException:
             await interaction.response.send_message(
                 "❌ Je n'arrive pas à écrire dans le salon des poèmes (permissions ?).",
@@ -219,10 +221,36 @@ class FormulairePoeme(discord.ui.Modal, title="Envoyer un poème anonyme"):
             return
 
         dernier_poeme[interaction.user.id] = time.monotonic()
-        # Message visible uniquement par l'auteur, personne ne sait qui a envoyé le poème
+        # Message visible uniquement par l'auteur, les membres ne savent pas qui a envoyé le poème
         await interaction.response.send_message(
-            f"✅ Ton poème a été publié anonymement dans {salon.mention} !", ephemeral=True
+            f"✅ Ton poème a été publié anonymement dans {salon.mention} !\n"
+            "-# Les autres membres ne voient pas ton nom, seule l'équipe de modération peut le voir.",
+            ephemeral=True,
         )
+        await envoyer_log_poeme(interaction, message, self.titre.value)
+
+
+async def envoyer_log_poeme(interaction, message, titre):
+    """Envoie l'auteur du poème dans le salon privé des modos (s'il est configuré)"""
+    salon_id = DONNEES['salons_logs_poemes'].get(str(interaction.guild_id))
+    salon_logs = interaction.guild.get_channel(salon_id) if salon_id else None
+    if salon_logs is None:
+        return
+
+    auteur = interaction.user
+    embed = discord.Embed(
+        title="📜 Nouveau poème anonyme",
+        description=f"**Auteur :** {auteur.mention} (`{auteur}` • ID `{auteur.id}`)\n"
+                    f"**Titre :** {titre or '*sans titre*'}\n"
+                    f"**Poème :** [voir le message]({message.jump_url})",
+        color=discord.Color.dark_grey(),
+        timestamp=discord.utils.utcnow(),
+    )
+    embed.set_thumbnail(url=auteur.display_avatar.url)
+    try:
+        await salon_logs.send(embed=embed, allowed_mentions=discord.AllowedMentions.none())
+    except discord.HTTPException as e:
+        print(f"Impossible d'écrire dans le salon des logs de poèmes: {e}")
 
 
 @bot.tree.command(name="poeme", description="Envoyer un poème anonymement")
@@ -249,9 +277,22 @@ async def salon_poemes(interaction, salon: discord.TextChannel):
     )
 
 
+@bot.tree.command(name="salon_logs_poemes", description="Choisir le salon privé où les modos voient l'auteur des poèmes")
+@discord.app_commands.guild_only()
+@discord.app_commands.default_permissions(manage_guild=True)
+async def salon_logs_poemes(interaction, salon: discord.TextChannel):
+    DONNEES['salons_logs_poemes'][str(interaction.guild_id)] = salon.id
+    sauvegarder_donnees()
+    await interaction.response.send_message(
+        f"✅ L'auteur de chaque poème sera envoyé dans {salon.mention}. "
+        "Pense à rendre ce salon visible uniquement par les admins/modos !",
+        ephemeral=True,
+    )
+
+
 @bot.event
 async def setup_hook():
-    # Enregistre les commandes slash (/poeme, /salon_poemes) auprès de Discord
+    # Enregistre les commandes slash (/poeme, /salon_poemes, /salon_logs_poemes) auprès de Discord
     await bot.tree.sync()
 
 
