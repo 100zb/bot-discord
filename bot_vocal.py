@@ -1,5 +1,6 @@
 import json
 import os
+import time
 
 import discord
 from discord.ext import commands
@@ -43,6 +44,7 @@ def charger_donnees():
         donnees = {}
     donnees.setdefault('salons_creation', {})  # id du serveur -> id du salon « Créer un vocal »
     donnees.setdefault('vocaux_temporaires', [])  # ids des vocaux créés par le bot
+    donnees.setdefault('salons_poemes', {})  # id du serveur -> id du salon des poèmes
     return donnees
 
 
@@ -172,6 +174,85 @@ async def on_voice_state_update(member, before, after):
         and len(before.channel.members) == 0
     ):
         await supprimer_vocal(before.channel)
+
+
+# ---------------------------------------------------------------------------
+# Poèmes anonymes : /poeme ouvre un formulaire, le bot poste le poème sans auteur
+# ---------------------------------------------------------------------------
+
+DELAI_ENTRE_POEMES = 5 * 60  # secondes entre deux poèmes d'une même personne (anti-spam)
+dernier_poeme = {}  # id du membre -> heure du dernier poème (en mémoire seulement)
+
+
+class FormulairePoeme(discord.ui.Modal, title="Envoyer un poème anonyme"):
+    titre = discord.ui.TextInput(
+        label="Titre (facultatif)", required=False, max_length=100
+    )
+    texte = discord.ui.TextInput(
+        label="Ton poème", style=discord.TextStyle.paragraph, max_length=4000
+    )
+
+    async def on_submit(self, interaction):
+        salon_id = DONNEES['salons_poemes'].get(str(interaction.guild_id))
+        salon = interaction.guild.get_channel(salon_id) if salon_id else None
+        if salon is None:
+            await interaction.response.send_message(
+                "❌ Le salon des poèmes n'est pas configuré. Demande à un admin de faire /salon_poemes.",
+                ephemeral=True,
+            )
+            return
+
+        embed = discord.Embed(
+            title=self.titre.value or None,
+            description=self.texte.value,
+            color=discord.Color.from_rgb(155, 89, 182),
+        )
+        embed.set_footer(text="✒️ Poème anonyme • envoie le tien avec /poeme")
+
+        try:
+            await salon.send(embed=embed)
+        except discord.HTTPException:
+            await interaction.response.send_message(
+                "❌ Je n'arrive pas à écrire dans le salon des poèmes (permissions ?).",
+                ephemeral=True,
+            )
+            return
+
+        dernier_poeme[interaction.user.id] = time.monotonic()
+        # Message visible uniquement par l'auteur, personne ne sait qui a envoyé le poème
+        await interaction.response.send_message(
+            f"✅ Ton poème a été publié anonymement dans {salon.mention} !", ephemeral=True
+        )
+
+
+@bot.tree.command(name="poeme", description="Envoyer un poème anonymement")
+@discord.app_commands.guild_only()
+async def poeme(interaction):
+    attente = DELAI_ENTRE_POEMES - (time.monotonic() - dernier_poeme.get(interaction.user.id, -DELAI_ENTRE_POEMES))
+    if attente > 0:
+        await interaction.response.send_message(
+            f"⏳ Attends encore {int(attente // 60) + 1} min avant d'envoyer un autre poème.",
+            ephemeral=True,
+        )
+        return
+    await interaction.response.send_modal(FormulairePoeme())
+
+
+@bot.tree.command(name="salon_poemes", description="Choisir le salon où sont publiés les poèmes anonymes")
+@discord.app_commands.guild_only()
+@discord.app_commands.default_permissions(manage_guild=True)
+async def salon_poemes(interaction, salon: discord.TextChannel):
+    DONNEES['salons_poemes'][str(interaction.guild_id)] = salon.id
+    sauvegarder_donnees()
+    await interaction.response.send_message(
+        f"✅ Les poèmes anonymes seront publiés dans {salon.mention}", ephemeral=True
+    )
+
+
+@bot.event
+async def setup_hook():
+    # Enregistre les commandes slash (/poeme, /salon_poemes) auprès de Discord
+    await bot.tree.sync()
 
 
 # Lancer le bot
