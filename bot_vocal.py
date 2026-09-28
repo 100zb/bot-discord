@@ -545,36 +545,7 @@ async def configurer_salon_public(interaction, type_message, salon):
             texte += "\n⚠️ Je n'ai pas pu l'épingler (il me manque « Gérer les messages »)."
     except discord.HTTPException:
         texte += "\n⚠️ Je n'ai pas pu poster le message d'explication (vérifie mes permissions dans ce salon)."
-    texte += ("\n💡 Conseil : dans ce salon, retire la permission « Envoyer des messages » à @everyone "
-              "pour que seul le bot y écrive.")
     await interaction.response.send_message(texte, ephemeral=True)
-
-
-@bot.event
-async def on_message(message):
-    """Si quelqu'un écrit directement dans le salon des confessions/poèmes, on supprime
-    son message (sinon tout le monde voit qui c'est) et on lui explique en MP comment faire."""
-    if message.author.bot or message.guild is None:
-        return
-    for type_message, config in TYPES_ANONYMES.items():
-        if DONNEES[config['cle_salon']].get(str(message.guild.id)) != message.channel.id:
-            continue
-        if message.author.guild_permissions.manage_messages:
-            return  # les modos peuvent écrire normalement
-        try:
-            await message.delete()
-        except discord.HTTPException:
-            return
-        try:
-            await message.author.send(
-                f"👋 J'ai supprimé ton message dans {message.channel.mention} pour protéger ton anonymat.\n"
-                f"Pour envoyer {'une' if config['accorde'] else 'un'} {config['nom']} anonyme, "
-                f"clique sur le bouton **{config['emoji']} {config['bouton']}** dans ce salon, "
-                f"ou tape `/{type_message}`."
-            )
-        except discord.HTTPException:
-            pass
-        return
 
 
 # --- Poèmes ---
