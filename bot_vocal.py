@@ -46,6 +46,9 @@ def charger_donnees():
     donnees.setdefault('vocaux_temporaires', [])  # ids des vocaux créés par le bot
     donnees.setdefault('salons_poemes', {})  # id du serveur -> id du salon des poèmes
     donnees.setdefault('salons_logs_poemes', {})  # id du serveur -> id du salon privé des modos
+    donnees.setdefault('salons_confessions', {})  # id du serveur -> id du salon des confessions
+    donnees.setdefault('salons_logs_confessions', {})  # id du serveur -> id du salon privé des modos
+    donnees.setdefault('compteur_confessions', {})  # id du serveur -> numéro de la dernière confession
     return donnees
 
 
@@ -178,71 +181,119 @@ async def on_voice_state_update(member, before, after):
 
 
 # ---------------------------------------------------------------------------
-# Poèmes anonymes : /poeme ouvre un formulaire, le bot poste le poème sans auteur.
-# L'auteur est envoyé uniquement dans un salon privé des modos (/salon_logs_poemes).
+# Messages anonymes (poèmes et confessions)
+# /poeme ou /confession ouvre un formulaire, le bot publie le texte sans auteur.
+# L'auteur est envoyé uniquement dans un salon privé des modos (s'il est configuré).
 # ---------------------------------------------------------------------------
 
-DELAI_ENTRE_POEMES = 5 * 60  # secondes entre deux poèmes d'une même personne (anti-spam)
-dernier_poeme = {}  # id du membre -> heure du dernier poème (en mémoire seulement)
+DELAI_ENTRE_MESSAGES = 5 * 60  # secondes entre deux envois d'une même personne (anti-spam)
+dernier_envoi = {}  # (type, id du membre) -> heure du dernier envoi (en mémoire seulement)
+
+TYPES_ANONYMES = {
+    'poeme': {
+        'nom': "poème",
+        'titre_formulaire': "Envoyer un poème anonyme",
+        'label_texte': "Ton poème",
+        'avec_titre': True,
+        'couleur': discord.Color.from_rgb(155, 89, 182),
+        'confirmation': "✅ Ton poème a été publié anonymement dans {salon} !",
+        'pied': "✒️ Poème anonyme • envoie le tien avec /poeme",
+        'titre_log': "📜 Nouveau poème anonyme",
+        'cle_salon': 'salons_poemes',
+        'cle_logs': 'salons_logs_poemes',
+        'commande_salon': 'salon_poemes',
+    },
+    'confession': {
+        'nom': "confession",
+        'titre_formulaire': "Faire une confession anonyme",
+        'label_texte': "Ta confession",
+        'avec_titre': False,
+        'couleur': discord.Color.from_rgb(52, 73, 94),
+        'confirmation': "✅ Ta confession a été publiée anonymement dans {salon} !",
+        'pied': "🤫 Confession anonyme • fais la tienne avec /confession",
+        'titre_log': "🤫 Nouvelle confession anonyme",
+        'cle_salon': 'salons_confessions',
+        'cle_logs': 'salons_logs_confessions',
+        'commande_salon': 'salon_confessions',
+    },
+}
 
 
-class FormulairePoeme(discord.ui.Modal, title="Envoyer un poème anonyme"):
-    titre = discord.ui.TextInput(
-        label="Titre (facultatif)", required=False, max_length=100
-    )
-    texte = discord.ui.TextInput(
-        label="Ton poème", style=discord.TextStyle.paragraph, max_length=4000
-    )
+class FormulaireAnonyme(discord.ui.Modal):
+    def __init__(self, type_message):
+        self.config = TYPES_ANONYMES[type_message]
+        self.type_message = type_message
+        super().__init__(title=self.config['titre_formulaire'])
+
+        self.titre = None
+        if self.config['avec_titre']:
+            self.titre = discord.ui.TextInput(label="Titre (facultatif)", required=False, max_length=100)
+            self.add_item(self.titre)
+        self.texte = discord.ui.TextInput(
+            label=self.config['label_texte'], style=discord.TextStyle.paragraph, max_length=4000
+        )
+        self.add_item(self.texte)
 
     async def on_submit(self, interaction):
-        salon_id = DONNEES['salons_poemes'].get(str(interaction.guild_id))
+        config = self.config
+        salon_id = DONNEES[config['cle_salon']].get(str(interaction.guild_id))
         salon = interaction.guild.get_channel(salon_id) if salon_id else None
         if salon is None:
             await interaction.response.send_message(
-                "❌ Le salon des poèmes n'est pas configuré. Demande à un admin de faire /salon_poemes.",
+                f"❌ Le salon des {config['nom']}s n'est pas configuré. "
+                f"Demande à un admin de faire /{config['commande_salon']}.",
                 ephemeral=True,
             )
             return
 
-        embed = discord.Embed(
-            title=self.titre.value or None,
-            description=self.texte.value,
-            color=discord.Color.from_rgb(155, 89, 182),
-        )
-        embed.set_footer(text="✒️ Poème anonyme • envoie le tien avec /poeme")
+        titre = self.titre.value if self.titre else ''
+        if self.type_message == 'confession':
+            # Numéro de la confession (#1, #2, ...) propre à chaque serveur
+            numero = DONNEES['compteur_confessions'].get(str(interaction.guild_id), 0) + 1
+            titre = f"Confession #{numero}"
+
+        embed = discord.Embed(title=titre or None, description=self.texte.value, color=config['couleur'])
+        embed.set_footer(text=config['pied'])
 
         try:
             message = await salon.send(embed=embed)
         except discord.HTTPException:
             await interaction.response.send_message(
-                "❌ Je n'arrive pas à écrire dans le salon des poèmes (permissions ?).",
+                f"❌ Je n'arrive pas à écrire dans le salon des {config['nom']}s (permissions ?).",
                 ephemeral=True,
             )
             return
 
-        dernier_poeme[interaction.user.id] = time.monotonic()
-        # Message visible uniquement par l'auteur, les membres ne savent pas qui a envoyé le poème
+        if self.type_message == 'confession':
+            DONNEES['compteur_confessions'][str(interaction.guild_id)] = numero
+            sauvegarder_donnees()
+
+        dernier_envoi[(self.type_message, interaction.user.id)] = time.monotonic()
+        # Message visible uniquement par l'auteur, les membres ne savent pas qui l'a envoyé
         await interaction.response.send_message(
-            f"✅ Ton poème a été publié anonymement dans {salon.mention} !\n"
+            config['confirmation'].format(salon=salon.mention) + "\n"
             "-# Les autres membres ne voient pas ton nom, seule l'équipe de modération peut le voir.",
             ephemeral=True,
         )
-        await envoyer_log_poeme(interaction, message, self.titre.value)
+        await envoyer_log(interaction, config, message, titre)
 
 
-async def envoyer_log_poeme(interaction, message, titre):
-    """Envoie l'auteur du poème dans le salon privé des modos (s'il est configuré)"""
-    salon_id = DONNEES['salons_logs_poemes'].get(str(interaction.guild_id))
+async def envoyer_log(interaction, config, message, titre):
+    """Envoie l'auteur dans le salon privé des modos (s'il est configuré)"""
+    salon_id = DONNEES[config['cle_logs']].get(str(interaction.guild_id))
     salon_logs = interaction.guild.get_channel(salon_id) if salon_id else None
     if salon_logs is None:
         return
 
     auteur = interaction.user
+    lignes = [f"**Auteur :** {auteur.mention} (`{auteur}` • ID `{auteur.id}`)"]
+    if config['avec_titre'] or titre:
+        lignes.append(f"**Titre :** {titre or '*sans titre*'}")
+    lignes.append(f"**Message :** [voir le message]({message.jump_url})")
+
     embed = discord.Embed(
-        title="📜 Nouveau poème anonyme",
-        description=f"**Auteur :** {auteur.mention} (`{auteur}` • ID `{auteur.id}`)\n"
-                    f"**Titre :** {titre or '*sans titre*'}\n"
-                    f"**Poème :** [voir le message]({message.jump_url})",
+        title=config['titre_log'],
+        description="\n".join(lignes),
         color=discord.Color.dark_grey(),
         timestamp=discord.utils.utcnow(),
     )
@@ -250,49 +301,81 @@ async def envoyer_log_poeme(interaction, message, titre):
     try:
         await salon_logs.send(embed=embed, allowed_mentions=discord.AllowedMentions.none())
     except discord.HTTPException as e:
-        print(f"Impossible d'écrire dans le salon des logs de poèmes: {e}")
+        print(f"Impossible d'écrire dans le salon des logs ({config['nom']}): {e}")
 
+
+async def ouvrir_formulaire(interaction, type_message):
+    depuis = time.monotonic() - dernier_envoi.get((type_message, interaction.user.id), -DELAI_ENTRE_MESSAGES)
+    attente = DELAI_ENTRE_MESSAGES - depuis
+    if attente > 0:
+        await interaction.response.send_message(
+            f"⏳ Attends encore {int(attente // 60) + 1} min avant d'en envoyer un autre.",
+            ephemeral=True,
+        )
+        return
+    await interaction.response.send_modal(FormulaireAnonyme(type_message))
+
+
+async def configurer_salon(interaction, cle, salon, texte):
+    DONNEES[cle][str(interaction.guild_id)] = salon.id
+    sauvegarder_donnees()
+    await interaction.response.send_message(texte.format(salon=salon.mention), ephemeral=True)
+
+
+AVERTISSEMENT_LOGS = " Pense à rendre ce salon visible uniquement par les admins/modos !"
+
+
+# --- Poèmes ---
 
 @bot.tree.command(name="poeme", description="Envoyer un poème anonymement")
 @discord.app_commands.guild_only()
 async def poeme(interaction):
-    attente = DELAI_ENTRE_POEMES - (time.monotonic() - dernier_poeme.get(interaction.user.id, -DELAI_ENTRE_POEMES))
-    if attente > 0:
-        await interaction.response.send_message(
-            f"⏳ Attends encore {int(attente // 60) + 1} min avant d'envoyer un autre poème.",
-            ephemeral=True,
-        )
-        return
-    await interaction.response.send_modal(FormulairePoeme())
+    await ouvrir_formulaire(interaction, 'poeme')
 
 
 @bot.tree.command(name="salon_poemes", description="Choisir le salon où sont publiés les poèmes anonymes")
 @discord.app_commands.guild_only()
 @discord.app_commands.default_permissions(manage_guild=True)
 async def salon_poemes(interaction, salon: discord.TextChannel):
-    DONNEES['salons_poemes'][str(interaction.guild_id)] = salon.id
-    sauvegarder_donnees()
-    await interaction.response.send_message(
-        f"✅ Les poèmes anonymes seront publiés dans {salon.mention}", ephemeral=True
-    )
+    await configurer_salon(interaction, 'salons_poemes', salon,
+                           "✅ Les poèmes anonymes seront publiés dans {salon}")
 
 
 @bot.tree.command(name="salon_logs_poemes", description="Choisir le salon privé où les modos voient l'auteur des poèmes")
 @discord.app_commands.guild_only()
 @discord.app_commands.default_permissions(manage_guild=True)
 async def salon_logs_poemes(interaction, salon: discord.TextChannel):
-    DONNEES['salons_logs_poemes'][str(interaction.guild_id)] = salon.id
-    sauvegarder_donnees()
-    await interaction.response.send_message(
-        f"✅ L'auteur de chaque poème sera envoyé dans {salon.mention}. "
-        "Pense à rendre ce salon visible uniquement par les admins/modos !",
-        ephemeral=True,
-    )
+    await configurer_salon(interaction, 'salons_logs_poemes', salon,
+                           "✅ L'auteur de chaque poème sera envoyé dans {salon}." + AVERTISSEMENT_LOGS)
+
+
+# --- Confessions ---
+
+@bot.tree.command(name="confession", description="Faire une confession anonyme")
+@discord.app_commands.guild_only()
+async def confession(interaction):
+    await ouvrir_formulaire(interaction, 'confession')
+
+
+@bot.tree.command(name="salon_confessions", description="Choisir le salon où sont publiées les confessions anonymes")
+@discord.app_commands.guild_only()
+@discord.app_commands.default_permissions(manage_guild=True)
+async def salon_confessions(interaction, salon: discord.TextChannel):
+    await configurer_salon(interaction, 'salons_confessions', salon,
+                           "✅ Les confessions anonymes seront publiées dans {salon}")
+
+
+@bot.tree.command(name="salon_logs_confessions", description="Choisir le salon privé où les modos voient l'auteur des confessions")
+@discord.app_commands.guild_only()
+@discord.app_commands.default_permissions(manage_guild=True)
+async def salon_logs_confessions(interaction, salon: discord.TextChannel):
+    await configurer_salon(interaction, 'salons_logs_confessions', salon,
+                           "✅ L'auteur de chaque confession sera envoyé dans {salon}." + AVERTISSEMENT_LOGS)
 
 
 @bot.event
 async def setup_hook():
-    # Enregistre les commandes slash (/poeme, /salon_poemes, /salon_logs_poemes) auprès de Discord
+    # Enregistre les commandes slash (/poeme, /confession, ...) auprès de Discord
     await bot.tree.sync()
 
 
