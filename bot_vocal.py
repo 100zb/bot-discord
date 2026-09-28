@@ -199,7 +199,11 @@ TYPES_ANONYMES = {
         'label_texte': "Ton poème",
         'avec_titre': True,
         'couleur': discord.Color.from_rgb(155, 89, 182),
-        'pied': "✒️ Poème anonyme • envoie le tien avec /poeme",
+        'pied': "✒️ Poème anonyme • envoie le tien avec le bouton ci-dessous",
+        'bouton': "Envoyer un poème anonyme",
+        'emoji': "✒️",
+        'panneau_titre': "✒️ Poèmes anonymes",
+        'panneau_texte': "Tu écris des poèmes mais tu n'oses pas les signer ? Partage-les ici **anonymement** !",
         'titre_log': "📜 Poème anonyme",
         'accorde': "",  # « publié » / « refusé »
         'il': "il",
@@ -215,7 +219,11 @@ TYPES_ANONYMES = {
         'label_texte': "Ta confession",
         'avec_titre': False,
         'couleur': discord.Color.from_rgb(52, 73, 94),
-        'pied': "🤫 Confession anonyme • fais la tienne avec /confession",
+        'pied': "🤫 Confession anonyme • fais la tienne avec le bouton ci-dessous",
+        'bouton': "Faire une confession anonyme",
+        'emoji': "🤫",
+        'panneau_titre': "🤫 Confessions anonymes",
+        'panneau_texte': "Un secret, un aveu, quelque chose que tu n'as jamais osé dire ? Dis-le ici **anonymement** !",
         'titre_log': "🤫 Confession anonyme",
         'accorde': "e",  # « publiée » / « refusée »
         'il': "elle",
@@ -361,7 +369,7 @@ async def accepter(interaction, demande):
     message = None
     if salon_public is not None:
         try:
-            message = await salon_public.send(embed=embed)
+            message = await salon_public.send(embed=embed, view=VueEnvoyer(demande['type']))
         except discord.HTTPException:
             pass
     if message is None:
@@ -459,6 +467,47 @@ class VueModeration(discord.ui.View):
         await interaction.response.send_modal(FormulaireRaison())
 
 
+class VueEnvoyer(discord.ui.View):
+    """Bouton « Faire une confession » / « Envoyer un poème » : plus besoin de connaître la commande.
+    Il marche même après un redémarrage du bot."""
+
+    def __init__(self, type_message):
+        super().__init__(timeout=None)
+        config = TYPES_ANONYMES[type_message]
+        bouton = discord.ui.Button(
+            label=config['bouton'], emoji=config['emoji'], style=discord.ButtonStyle.primary,
+            custom_id=f"anonyme:ouvrir:{type_message}",
+        )
+
+        async def clic(interaction):
+            await ouvrir_formulaire(interaction, type_message)
+
+        bouton.callback = clic
+        self.add_item(bouton)
+
+
+def embed_panneau(type_message):
+    """Message d'explication épinglé dans le salon public"""
+    config = TYPES_ANONYMES[type_message]
+    e = config['accorde']
+    embed = discord.Embed(
+        title=config['panneau_titre'],
+        description=(
+            f"{config['panneau_texte']}\n\n"
+            "**Comment faire ?**\n"
+            f"1️⃣ Clique sur le bouton **{config['emoji']} {config['bouton']}** ci-dessous "
+            f"(ou sous n'importe quel{'le' if e else ''} {config['nom']}, ou tape `/{type_message}`)\n"
+            "2️⃣ Écris ton texte dans la fenêtre qui s'ouvre et valide\n"
+            "3️⃣ L'équipe de modération le relit, puis il est publié ici **sans ton nom**\n\n"
+            "🔒 Les autres membres ne sauront jamais que c'est toi. Seule l'équipe de modération "
+            "peut voir l'auteur, pour éviter les abus.\n"
+            "📩 Tu reçois un message privé quand c'est accepté ou refusé."
+        ),
+        color=config['couleur'],
+    )
+    return embed
+
+
 async def ouvrir_formulaire(interaction, type_message):
     depuis = time.monotonic() - dernier_envoi.get((type_message, interaction.user.id), -DELAI_ENTRE_MESSAGES)
     attente = DELAI_ENTRE_MESSAGES - depuis
@@ -480,6 +529,54 @@ async def configurer_salon(interaction, cle, salon, texte):
 AVERTISSEMENT_LOGS = " Pense à rendre ce salon visible uniquement par les admins/modos !"
 
 
+async def configurer_salon_public(interaction, type_message, salon):
+    """Enregistre le salon public et y poste (et épingle) le message d'explication avec le bouton"""
+    config = TYPES_ANONYMES[type_message]
+    DONNEES[config['cle_salon']][str(interaction.guild_id)] = salon.id
+    sauvegarder_donnees()
+
+    texte = f"✅ Les {config['nom']}s accepté{config['accorde']}s seront publié{config['accorde']}s dans {salon.mention}."
+    try:
+        panneau = await salon.send(embed=embed_panneau(type_message), view=VueEnvoyer(type_message))
+        texte += " J'y ai posté le message d'explication avec le bouton."
+        try:
+            await panneau.pin()
+        except discord.HTTPException:
+            texte += "\n⚠️ Je n'ai pas pu l'épingler (il me manque « Gérer les messages »)."
+    except discord.HTTPException:
+        texte += "\n⚠️ Je n'ai pas pu poster le message d'explication (vérifie mes permissions dans ce salon)."
+    texte += ("\n💡 Conseil : dans ce salon, retire la permission « Envoyer des messages » à @everyone "
+              "pour que seul le bot y écrive.")
+    await interaction.response.send_message(texte, ephemeral=True)
+
+
+@bot.event
+async def on_message(message):
+    """Si quelqu'un écrit directement dans le salon des confessions/poèmes, on supprime
+    son message (sinon tout le monde voit qui c'est) et on lui explique en MP comment faire."""
+    if message.author.bot or message.guild is None:
+        return
+    for type_message, config in TYPES_ANONYMES.items():
+        if DONNEES[config['cle_salon']].get(str(message.guild.id)) != message.channel.id:
+            continue
+        if message.author.guild_permissions.manage_messages:
+            return  # les modos peuvent écrire normalement
+        try:
+            await message.delete()
+        except discord.HTTPException:
+            return
+        try:
+            await message.author.send(
+                f"👋 J'ai supprimé ton message dans {message.channel.mention} pour protéger ton anonymat.\n"
+                f"Pour envoyer {'une' if config['accorde'] else 'un'} {config['nom']} anonyme, "
+                f"clique sur le bouton **{config['emoji']} {config['bouton']}** dans ce salon, "
+                f"ou tape `/{type_message}`."
+            )
+        except discord.HTTPException:
+            pass
+        return
+
+
 # --- Poèmes ---
 
 @bot.tree.command(name="poeme", description="Envoyer un poème anonymement")
@@ -492,8 +589,7 @@ async def poeme(interaction):
 @discord.app_commands.guild_only()
 @discord.app_commands.default_permissions(manage_guild=True)
 async def salon_poemes(interaction, salon: discord.TextChannel):
-    await configurer_salon(interaction, 'salons_poemes', salon,
-                           "✅ Les poèmes acceptés seront publiés dans {salon}")
+    await configurer_salon_public(interaction, 'poeme', salon)
 
 
 @bot.tree.command(name="salon_logs_poemes", description="Choisir le salon privé où les modos valident les poèmes")
@@ -516,8 +612,7 @@ async def confession(interaction):
 @discord.app_commands.guild_only()
 @discord.app_commands.default_permissions(manage_guild=True)
 async def salon_confessions(interaction, salon: discord.TextChannel):
-    await configurer_salon(interaction, 'salons_confessions', salon,
-                           "✅ Les confessions acceptées seront publiées dans {salon}")
+    await configurer_salon_public(interaction, 'confession', salon)
 
 
 @bot.tree.command(name="salon_logs_confessions", description="Choisir le salon privé où les modos valident les confessions")
@@ -532,6 +627,8 @@ async def salon_logs_confessions(interaction, salon: discord.TextChannel):
 async def setup_hook():
     # Boutons Accepter / Refuser : on les réactive à chaque démarrage
     bot.add_view(VueModeration())
+    for type_message in TYPES_ANONYMES:
+        bot.add_view(VueEnvoyer(type_message))
     # Enregistre les commandes slash (/poeme, /confession, ...) auprès de Discord
     await bot.tree.sync()
 
