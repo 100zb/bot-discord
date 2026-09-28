@@ -49,6 +49,7 @@ def charger_donnees():
     donnees.setdefault('salons_confessions', {})  # id du serveur -> id du salon des confessions
     donnees.setdefault('salons_logs_confessions', {})  # id du serveur -> id du salon privé des modos
     donnees.setdefault('compteur_confessions', {})  # id du serveur -> numéro de la dernière confession
+    donnees.setdefault('en_attente', {})  # id du message des modos -> poème/confession en attente de validation
     return donnees
 
 
@@ -182,8 +183,9 @@ async def on_voice_state_update(member, before, after):
 
 # ---------------------------------------------------------------------------
 # Messages anonymes (poèmes et confessions)
-# /poeme ou /confession ouvre un formulaire, le bot publie le texte sans auteur.
-# L'auteur est envoyé uniquement dans un salon privé des modos (s'il est configuré).
+# /poeme ou /confession ouvre un formulaire. Le texte part d'abord dans le salon
+# privé des modos (avec le nom de l'auteur) où ils peuvent Accepter / Refuser /
+# Refuser avec une raison. S'il est accepté, le bot le publie sans auteur.
 # ---------------------------------------------------------------------------
 
 DELAI_ENTRE_MESSAGES = 5 * 60  # secondes entre deux envois d'une même personne (anti-spam)
@@ -192,31 +194,46 @@ dernier_envoi = {}  # (type, id du membre) -> heure du dernier envoi (en mémoir
 TYPES_ANONYMES = {
     'poeme': {
         'nom': "poème",
+        'le': "Ton poème",
         'titre_formulaire': "Envoyer un poème anonyme",
         'label_texte': "Ton poème",
         'avec_titre': True,
         'couleur': discord.Color.from_rgb(155, 89, 182),
-        'confirmation': "✅ Ton poème a été publié anonymement dans {salon} !",
         'pied': "✒️ Poème anonyme • envoie le tien avec /poeme",
-        'titre_log': "📜 Nouveau poème anonyme",
+        'titre_log': "📜 Poème anonyme",
+        'accorde': "",  # « publié » / « refusé »
+        'il': "il",
         'cle_salon': 'salons_poemes',
         'cle_logs': 'salons_logs_poemes',
         'commande_salon': 'salon_poemes',
+        'commande_logs': 'salon_logs_poemes',
     },
     'confession': {
         'nom': "confession",
+        'le': "Ta confession",
         'titre_formulaire': "Faire une confession anonyme",
         'label_texte': "Ta confession",
         'avec_titre': False,
         'couleur': discord.Color.from_rgb(52, 73, 94),
-        'confirmation': "✅ Ta confession a été publiée anonymement dans {salon} !",
         'pied': "🤫 Confession anonyme • fais la tienne avec /confession",
-        'titre_log': "🤫 Nouvelle confession anonyme",
+        'titre_log': "🤫 Confession anonyme",
+        'accorde': "e",  # « publiée » / « refusée »
+        'il': "elle",
         'cle_salon': 'salons_confessions',
         'cle_logs': 'salons_logs_confessions',
         'commande_salon': 'salon_confessions',
+        'commande_logs': 'salon_logs_confessions',
     },
 }
+
+COULEUR_ATTENTE = discord.Color.orange()
+COULEUR_ACCEPTE = discord.Color.green()
+COULEUR_REFUSE = discord.Color.red()
+
+
+def salon_configure(guild, cle):
+    salon_id = DONNEES[cle].get(str(guild.id))
+    return guild.get_channel(salon_id) if salon_id else None
 
 
 class FormulaireAnonyme(discord.ui.Modal):
@@ -236,72 +253,210 @@ class FormulaireAnonyme(discord.ui.Modal):
 
     async def on_submit(self, interaction):
         config = self.config
-        salon_id = DONNEES[config['cle_salon']].get(str(interaction.guild_id))
-        salon = interaction.guild.get_channel(salon_id) if salon_id else None
-        if salon is None:
+        salon_public = salon_configure(interaction.guild, config['cle_salon'])
+        salon_modos = salon_configure(interaction.guild, config['cle_logs'])
+        if salon_public is None or salon_modos is None:
             await interaction.response.send_message(
-                f"❌ Le salon des {config['nom']}s n'est pas configuré. "
-                f"Demande à un admin de faire /{config['commande_salon']}.",
+                f"❌ Les {config['nom']}s ne sont pas encore configuré{config['accorde']}s. Demande à un admin "
+                f"de faire /{config['commande_salon']} et /{config['commande_logs']}.",
                 ephemeral=True,
             )
             return
 
-        titre = self.titre.value if self.titre else ''
-        if self.type_message == 'confession':
-            # Numéro de la confession (#1, #2, ...) propre à chaque serveur
-            numero = DONNEES['compteur_confessions'].get(str(interaction.guild_id), 0) + 1
-            titre = f"Confession #{numero}"
-
-        embed = discord.Embed(title=titre or None, description=self.texte.value, color=config['couleur'])
-        embed.set_footer(text=config['pied'])
-
+        demande = {
+            'type': self.type_message,
+            'auteur_id': interaction.user.id,
+            'titre': self.titre.value if self.titre else '',
+            'texte': self.texte.value,
+        }
+        embed = embed_moderation(demande, interaction.user)
         try:
-            message = await salon.send(embed=embed)
+            message = await salon_modos.send(
+                embed=embed, view=VueModeration(), allowed_mentions=discord.AllowedMentions.none()
+            )
         except discord.HTTPException:
             await interaction.response.send_message(
-                f"❌ Je n'arrive pas à écrire dans le salon des {config['nom']}s (permissions ?).",
+                f"❌ Je n'arrive pas à écrire dans le salon de validation des {config['nom']}s (permissions ?).",
                 ephemeral=True,
             )
             return
 
-        if self.type_message == 'confession':
-            DONNEES['compteur_confessions'][str(interaction.guild_id)] = numero
-            sauvegarder_donnees()
-
+        DONNEES['en_attente'][str(message.id)] = demande
+        sauvegarder_donnees()
         dernier_envoi[(self.type_message, interaction.user.id)] = time.monotonic()
-        # Message visible uniquement par l'auteur, les membres ne savent pas qui l'a envoyé
+
+        e, il = config['accorde'], config['il']
         await interaction.response.send_message(
-            config['confirmation'].format(salon=salon.mention) + "\n"
-            "-# Les autres membres ne voient pas ton nom, seule l'équipe de modération peut le voir.",
+            f"📨 {config['le']} a été envoyé{e} à l'équipe de modération. "
+            f"Tu recevras un message privé quand {il} sera accepté{e} ou refusé{e}.\n"
+            f"-# Une fois publié{e}, les autres membres ne verront pas ton nom. "
+            "Seule l'équipe de modération peut le voir.",
             ephemeral=True,
         )
-        await envoyer_log(interaction, config, message, titre)
 
 
-async def envoyer_log(interaction, config, message, titre):
-    """Envoie l'auteur dans le salon privé des modos (s'il est configuré)"""
-    salon_id = DONNEES[config['cle_logs']].get(str(interaction.guild_id))
-    salon_logs = interaction.guild.get_channel(salon_id) if salon_id else None
-    if salon_logs is None:
-        return
-
-    auteur = interaction.user
-    lignes = [f"**Auteur :** {auteur.mention} (`{auteur}` • ID `{auteur.id}`)"]
-    if config['avec_titre'] or titre:
-        lignes.append(f"**Titre :** {titre or '*sans titre*'}")
-    lignes.append(f"**Message :** [voir le message]({message.jump_url})")
-
+def embed_moderation(demande, auteur):
+    """Message envoyé aux modos : contenu + auteur"""
+    config = TYPES_ANONYMES[demande['type']]
     embed = discord.Embed(
-        title=config['titre_log'],
-        description="\n".join(lignes),
-        color=discord.Color.dark_grey(),
+        title=f"{config['titre_log']} • ⏳ En attente de validation",
+        description=demande['texte'],
+        color=COULEUR_ATTENTE,
         timestamp=discord.utils.utcnow(),
     )
+    if demande['titre']:
+        embed.add_field(name="Titre", value=demande['titre'], inline=False)
+    embed.add_field(
+        name="Auteur (visible seulement ici)",
+        value=f"{auteur.mention} (`{auteur}` • ID `{auteur.id}`)",
+        inline=False,
+    )
     embed.set_thumbnail(url=auteur.display_avatar.url)
+    return embed
+
+
+async def prevenir_auteur(guild, demande, texte):
+    """Envoie un message privé à l'auteur (ne marche pas s'il a fermé ses MP)"""
+    membre = guild.get_member(demande['auteur_id'])
+    if membre is None:
+        try:
+            membre = await guild.fetch_member(demande['auteur_id'])
+        except discord.HTTPException:
+            return False
     try:
-        await salon_logs.send(embed=embed, allowed_mentions=discord.AllowedMentions.none())
-    except discord.HTTPException as e:
-        print(f"Impossible d'écrire dans le salon des logs ({config['nom']}): {e}")
+        await membre.send(texte)
+        return True
+    except discord.HTTPException:
+        return False
+
+
+def peut_moderer(interaction):
+    return interaction.user.guild_permissions.manage_messages
+
+
+async def terminer(interaction, demande, statut, couleur, details=""):
+    """Met à jour le message des modos : statut, qui a décidé, et on enlève les boutons"""
+    embed = interaction.message.embeds[0]
+    config = TYPES_ANONYMES[demande['type']]
+    embed.title = f"{config['titre_log']} • {statut}"
+    embed.color = couleur
+    embed.add_field(name="Décision", value=f"{statut} par {interaction.user.mention}{details}", inline=False)
+    await interaction.response.edit_message(embed=embed, view=None)
+
+
+async def accepter(interaction, demande):
+    config = TYPES_ANONYMES[demande['type']]
+    guild = interaction.guild
+    salon_public = salon_configure(guild, config['cle_salon'])
+
+    titre = demande['titre']
+    if demande['type'] == 'confession':
+        # Numéro de la confession (#1, #2, ...) propre à chaque serveur
+        numero = DONNEES['compteur_confessions'].get(str(guild.id), 0) + 1
+        titre = f"Confession #{numero}"
+
+    embed = discord.Embed(title=titre or None, description=demande['texte'], color=config['couleur'])
+    embed.set_footer(text=config['pied'])
+
+    message = None
+    if salon_public is not None:
+        try:
+            message = await salon_public.send(embed=embed)
+        except discord.HTTPException:
+            pass
+    if message is None:
+        DONNEES['en_attente'][str(interaction.message.id)] = demande  # on remet en attente
+        await interaction.response.send_message(
+            f"❌ Impossible de publier dans le salon des {config['nom']}s (salon supprimé ou permissions ?).",
+            ephemeral=True,
+        )
+        return
+
+    if demande['type'] == 'confession':
+        DONNEES['compteur_confessions'][str(guild.id)] = numero
+    sauvegarder_donnees()
+
+    ok = await prevenir_auteur(
+        guild, demande,
+        f"✅ {config['le']} sur **{guild.name}** a été accepté{config['accorde']} et publié{config['accorde']} "
+        f"anonymement : {message.jump_url}",
+    )
+    await terminer(
+        interaction, demande, "✅ Accepté" + config['accorde'], COULEUR_ACCEPTE,
+        f"\n[Voir le message publié]({message.jump_url})" + ("" if ok else "\n-# (MP de l'auteur fermés)"),
+    )
+
+
+async def refuser(interaction, demande, raison=None):
+    config = TYPES_ANONYMES[demande['type']]
+    sauvegarder_donnees()
+    texte = f"❌ {config['le']} sur **{interaction.guild.name}** a été refusé{config['accorde']} par l'équipe de modération."
+    if raison:
+        texte += f"\n**Raison :** {raison}"
+    ok = await prevenir_auteur(interaction.guild, demande, texte)
+    details = (f"\n**Raison :** {raison}" if raison else "") + ("" if ok else "\n-# (MP de l'auteur fermés)")
+    await terminer(interaction, demande, "❌ Refusé" + config['accorde'], COULEUR_REFUSE, details)
+
+
+def prendre_demande(interaction):
+    """Retire la demande de la file d'attente (évite que 2 modos la traitent en même temps)"""
+    return DONNEES['en_attente'].pop(str(interaction.message.id), None)
+
+
+async def deja_traitee(interaction):
+    await interaction.response.send_message("⚠️ Cette demande a déjà été traitée.", ephemeral=True)
+
+
+class FormulaireRaison(discord.ui.Modal, title="Refuser avec une raison"):
+    raison = discord.ui.TextInput(
+        label="Raison (envoyée à l'auteur en MP)", style=discord.TextStyle.paragraph, max_length=1000
+    )
+
+    async def on_submit(self, interaction):
+        demande = prendre_demande(interaction)
+        if demande is None:
+            await deja_traitee(interaction)
+            return
+        await refuser(interaction, demande, self.raison.value)
+
+
+class VueModeration(discord.ui.View):
+    """Boutons sous chaque demande. Ils marchent même après un redémarrage du bot."""
+
+    def __init__(self):
+        super().__init__(timeout=None)
+
+    async def interaction_check(self, interaction):
+        if not peut_moderer(interaction):
+            await interaction.response.send_message(
+                "❌ Il faut la permission « Gérer les messages » pour faire ça.", ephemeral=True
+            )
+            return False
+        return True
+
+    @discord.ui.button(label="Accepter", emoji="✅", style=discord.ButtonStyle.success, custom_id="anonyme:accepter")
+    async def bouton_accepter(self, interaction, button):
+        demande = prendre_demande(interaction)
+        if demande is None:
+            await deja_traitee(interaction)
+            return
+        await accepter(interaction, demande)
+
+    @discord.ui.button(label="Refuser", emoji="❌", style=discord.ButtonStyle.danger, custom_id="anonyme:refuser")
+    async def bouton_refuser(self, interaction, button):
+        demande = prendre_demande(interaction)
+        if demande is None:
+            await deja_traitee(interaction)
+            return
+        await refuser(interaction, demande)
+
+    @discord.ui.button(label="Refuser avec une raison", emoji="📝", style=discord.ButtonStyle.secondary,
+                       custom_id="anonyme:refuser_raison")
+    async def bouton_refuser_raison(self, interaction, button):
+        if str(interaction.message.id) not in DONNEES['en_attente']:
+            await deja_traitee(interaction)
+            return
+        await interaction.response.send_modal(FormulaireRaison())
 
 
 async def ouvrir_formulaire(interaction, type_message):
@@ -338,15 +493,15 @@ async def poeme(interaction):
 @discord.app_commands.default_permissions(manage_guild=True)
 async def salon_poemes(interaction, salon: discord.TextChannel):
     await configurer_salon(interaction, 'salons_poemes', salon,
-                           "✅ Les poèmes anonymes seront publiés dans {salon}")
+                           "✅ Les poèmes acceptés seront publiés dans {salon}")
 
 
-@bot.tree.command(name="salon_logs_poemes", description="Choisir le salon privé où les modos voient l'auteur des poèmes")
+@bot.tree.command(name="salon_logs_poemes", description="Choisir le salon privé où les modos valident les poèmes")
 @discord.app_commands.guild_only()
 @discord.app_commands.default_permissions(manage_guild=True)
 async def salon_logs_poemes(interaction, salon: discord.TextChannel):
     await configurer_salon(interaction, 'salons_logs_poemes', salon,
-                           "✅ L'auteur de chaque poème sera envoyé dans {salon}." + AVERTISSEMENT_LOGS)
+                           "✅ Les poèmes (avec leur auteur) arriveront dans {salon} pour validation." + AVERTISSEMENT_LOGS)
 
 
 # --- Confessions ---
@@ -362,19 +517,21 @@ async def confession(interaction):
 @discord.app_commands.default_permissions(manage_guild=True)
 async def salon_confessions(interaction, salon: discord.TextChannel):
     await configurer_salon(interaction, 'salons_confessions', salon,
-                           "✅ Les confessions anonymes seront publiées dans {salon}")
+                           "✅ Les confessions acceptées seront publiées dans {salon}")
 
 
-@bot.tree.command(name="salon_logs_confessions", description="Choisir le salon privé où les modos voient l'auteur des confessions")
+@bot.tree.command(name="salon_logs_confessions", description="Choisir le salon privé où les modos valident les confessions")
 @discord.app_commands.guild_only()
 @discord.app_commands.default_permissions(manage_guild=True)
 async def salon_logs_confessions(interaction, salon: discord.TextChannel):
     await configurer_salon(interaction, 'salons_logs_confessions', salon,
-                           "✅ L'auteur de chaque confession sera envoyé dans {salon}." + AVERTISSEMENT_LOGS)
+                           "✅ Les confessions (avec leur auteur) arriveront dans {salon} pour validation." + AVERTISSEMENT_LOGS)
 
 
 @bot.event
 async def setup_hook():
+    # Boutons Accepter / Refuser : on les réactive à chaque démarrage
+    bot.add_view(VueModeration())
     # Enregistre les commandes slash (/poeme, /confession, ...) auprès de Discord
     await bot.tree.sync()
 
