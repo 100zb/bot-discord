@@ -594,6 +594,25 @@ async def salon_logs_confessions(interaction, salon: discord.TextChannel):
                            "✅ Les confessions (avec leur auteur) arriveront dans {salon} pour validation." + AVERTISSEMENT_LOGS)
 
 
+# --- Photo de profil du bot ---
+
+@bot.tree.command(name="photo_bot", description="Changer la photo de profil du bot")
+@discord.app_commands.guild_only()
+@discord.app_commands.default_permissions(administrator=True)
+async def photo_bot(interaction, image: discord.Attachment):
+    if not (image.content_type or '').startswith('image/'):
+        await interaction.response.send_message("❌ Envoie une image (PNG, JPG ou GIF).", ephemeral=True)
+        return
+    await interaction.response.defer(ephemeral=True)
+    try:
+        await bot.user.edit(avatar=await image.read())
+    except discord.HTTPException as e:
+        # Discord limite les changements de photo (environ 2 toutes les 10 minutes)
+        await interaction.followup.send(f"❌ Discord a refusé le changement : {e.text or e}", ephemeral=True)
+        return
+    await interaction.followup.send("✅ Photo de profil changée ! (ça peut prendre quelques minutes à s'afficher)", ephemeral=True)
+
+
 @bot.event
 async def setup_hook():
     # Boutons Accepter / Refuser : on les réactive à chaque démarrage
