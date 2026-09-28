@@ -542,7 +542,7 @@ async def configurer_salon_public(interaction, type_message, salon):
         try:
             await panneau.pin()
         except discord.HTTPException:
-            texte += "\n⚠️ Je n'ai pas pu l'épingler (il me manque « Gérer les messages »)."
+            texte += "\n⚠️ Je n'ai pas pu l'épingler (il me manque la permission « Épingler des messages » dans ce salon)."
     except discord.HTTPException:
         texte += "\n⚠️ Je n'ai pas pu poster le message d'explication (vérifie mes permissions dans ce salon)."
     await interaction.response.send_message(texte, ephemeral=True)
