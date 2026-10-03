@@ -646,7 +646,8 @@ def afficher_duree(duree):
 
 @bot.hybrid_command(name="lock", description="Verrouiller le salon (seuls les admins peuvent écrire)")
 @commands.guild_only()
-@commands.has_permissions(manage_channels=True)
+@commands.has_permissions(administrator=True)
+@discord.app_commands.default_permissions(administrator=True)
 async def lock(ctx):
     salon = ctx.channel
     if str(salon.id) in DONNEES['salons_verrouilles']:
@@ -675,7 +676,8 @@ async def lock(ctx):
 
 @bot.hybrid_command(name="unlock", description="Déverrouiller le salon")
 @commands.guild_only()
-@commands.has_permissions(manage_channels=True)
+@commands.has_permissions(administrator=True)
+@discord.app_commands.default_permissions(administrator=True)
 async def unlock(ctx):
     salon = ctx.channel
     anciens = DONNEES['salons_verrouilles'].pop(str(salon.id), None)
@@ -699,7 +701,8 @@ async def unlock(ctx):
 
 @bot.hybrid_command(name="mute", description="Rendre muet un membre pendant un temps donné")
 @commands.guild_only()
-@commands.has_permissions(moderate_members=True)
+@commands.has_permissions(administrator=True)
+@discord.app_commands.default_permissions(administrator=True)
 @discord.app_commands.describe(membre="Le membre à mute", duree="Ex : 30s, 10m, 1h, 1h30m, 2j", raison="Facultatif")
 async def mute(ctx, membre: discord.Member, duree: str, *, raison: str = None):
     temps = lire_duree(duree)
@@ -731,7 +734,8 @@ async def mute(ctx, membre: discord.Member, duree: str, *, raison: str = None):
 
 @bot.hybrid_command(name="unmute", description="Enlever le mute d'un membre")
 @commands.guild_only()
-@commands.has_permissions(moderate_members=True)
+@commands.has_permissions(administrator=True)
+@discord.app_commands.default_permissions(administrator=True)
 async def unmute(ctx, membre: discord.Member):
     if not membre.is_timed_out():
         await ctx.send(f"ℹ️ {membre.mention} n'est pas mute.")
@@ -751,7 +755,7 @@ async def on_command_error(ctx, error):
     if isinstance(error, commands.CommandNotFound):
         return  # ex : quelqu'un écrit « ... » ou « .lol »
     if isinstance(error, commands.MissingPermissions):
-        await ctx.send("❌ Tu n'as pas la permission d'utiliser cette commande.")
+        await ctx.send("❌ Cette commande est réservée aux administrateurs.")
     elif isinstance(error, commands.MissingRequiredArgument):
         await ctx.send(f"❌ Il manque quelque chose. Exemple : `{EXEMPLES.get(ctx.command.name, '')}`")
     elif isinstance(error, (commands.MemberNotFound, commands.BadArgument)):
