@@ -25,7 +25,8 @@ intents = discord.Intents.default()
 intents.voice_states = True
 intents.message_content = True  # pour lire les commandes en « . » (.lock, .mute, ...)
 
-bot = commands.Bot(command_prefix='.', intents=intents, case_insensitive=True, help_command=None)
+# « . » ou une mention du bot (« @MonBot lock » marche même sans le Message Content Intent)
+bot = commands.Bot(command_prefix=commands.when_mentioned_or('.'), intents=intents, case_insensitive=True, help_command=None)
 
 
 class ReconnexionRapide(discord.backoff.ExponentialBackoff):
