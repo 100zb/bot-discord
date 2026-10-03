@@ -1,5 +1,7 @@
+import datetime
 import json
 import os
+import re
 import time
 
 import discord
@@ -21,8 +23,9 @@ FICHIER_DONNEES = os.path.join(DOSSIER, 'donnees_vocal.json')
 # Configuration du bot
 intents = discord.Intents.default()
 intents.voice_states = True
+intents.message_content = True  # pour lire les commandes en « . » (.lock, .mute, ...)
 
-bot = commands.Bot(command_prefix='!', intents=intents)
+bot = commands.Bot(command_prefix='.', intents=intents, case_insensitive=True, help_command=None)
 
 
 class ReconnexionRapide(discord.backoff.ExponentialBackoff):
@@ -49,6 +52,7 @@ def charger_donnees():
     donnees.setdefault('salons_confessions', {})  # id du serveur -> id du salon des confessions
     donnees.setdefault('salons_logs_confessions', {})  # id du serveur -> id du salon privé des modos
     donnees.setdefault('compteur_confessions', {})  # id du serveur -> numéro de la dernière confession
+    donnees.setdefault('salons_verrouilles', {})  # id du salon -> réglages d'avant le .lock
     donnees.setdefault('en_attente', {})  # id du message des modos -> poème/confession en attente de validation
     return donnees
 
@@ -613,6 +617,159 @@ async def photo_bot(interaction, image: discord.Attachment):
     await interaction.followup.send("✅ Photo de profil changée ! (ça peut prendre quelques minutes à s'afficher)", ephemeral=True)
 
 
+# ---------------------------------------------------------------------------
+# Modération : .lock / .unlock / .mute / .unmute (marchent aussi en /lock, /mute, ...)
+# ---------------------------------------------------------------------------
+
+UNITES_DUREE = {'s': 1, 'm': 60, 'h': 3600, 'j': 86400, 'd': 86400}
+DUREE_MAX_MUTE = datetime.timedelta(days=28)  # limite imposée par Discord
+
+
+def lire_duree(texte):
+    """« 10m » -> 10 minutes, « 1h30m » -> 1h30, « 2j » -> 2 jours. Renvoie None si invalide."""
+    morceaux = re.fullmatch(r'(?:\d+[smhjd])+', texte.lower().replace(' ', ''))
+    if not morceaux:
+        return None
+    secondes = sum(int(n) * UNITES_DUREE[u] for n, u in re.findall(r'(\d+)([smhjd])', texte.lower()))
+    return datetime.timedelta(seconds=secondes) if secondes > 0 else None
+
+
+def afficher_duree(duree):
+    reste = int(duree.total_seconds())
+    parties = []
+    for nom, taille in (('j', 86400), ('h', 3600), ('min', 60), ('s', 1)):
+        if reste >= taille:
+            parties.append(f"{reste // taille}{nom}")
+            reste %= taille
+    return ' '.join(parties)
+
+
+@bot.hybrid_command(name="lock", description="Verrouiller le salon (seuls les admins peuvent écrire)")
+@commands.guild_only()
+@commands.has_permissions(manage_channels=True)
+async def lock(ctx):
+    salon = ctx.channel
+    if str(salon.id) in DONNEES['salons_verrouilles']:
+        await ctx.send("🔒 Ce salon est déjà verrouillé.")
+        return
+
+    # On retient les réglages actuels pour tout remettre pareil au .unlock
+    anciens = {}
+    for cible, perms in salon.overwrites.items():
+        if not isinstance(cible, discord.Role):
+            continue
+        if cible.is_default() or (perms.send_messages and not cible.permissions.administrator):
+            anciens[str(cible.id)] = perms.send_messages
+            perms.send_messages = False
+            await salon.set_permissions(cible, overwrite=perms, reason=f".lock par {ctx.author}")
+    if str(ctx.guild.default_role.id) not in anciens:
+        perms = salon.overwrites_for(ctx.guild.default_role)
+        anciens[str(ctx.guild.default_role.id)] = perms.send_messages
+        perms.send_messages = False
+        await salon.set_permissions(ctx.guild.default_role, overwrite=perms, reason=f".lock par {ctx.author}")
+
+    DONNEES['salons_verrouilles'][str(salon.id)] = anciens
+    sauvegarder_donnees()
+    await ctx.send("🔒 Salon verrouillé. Seuls les administrateurs peuvent écrire. `.unlock` pour déverrouiller.")
+
+
+@bot.hybrid_command(name="unlock", description="Déverrouiller le salon")
+@commands.guild_only()
+@commands.has_permissions(manage_channels=True)
+async def unlock(ctx):
+    salon = ctx.channel
+    anciens = DONNEES['salons_verrouilles'].pop(str(salon.id), None)
+    if anciens is None:
+        # Pas verrouillé par le bot : on rouvre au moins pour @everyone
+        anciens = {str(ctx.guild.default_role.id): None}
+
+    for role_id, valeur in anciens.items():
+        role = ctx.guild.get_role(int(role_id))
+        if role is None:
+            continue
+        perms = salon.overwrites_for(role)
+        perms.send_messages = valeur
+        await salon.set_permissions(
+            role, overwrite=None if perms.is_empty() else perms, reason=f".unlock par {ctx.author}"
+        )
+
+    sauvegarder_donnees()
+    await ctx.send("🔓 Salon déverrouillé, tout le monde peut de nouveau écrire.")
+
+
+@bot.hybrid_command(name="mute", description="Rendre muet un membre pendant un temps donné")
+@commands.guild_only()
+@commands.has_permissions(moderate_members=True)
+@discord.app_commands.describe(membre="Le membre à mute", duree="Ex : 30s, 10m, 1h, 1h30m, 2j", raison="Facultatif")
+async def mute(ctx, membre: discord.Member, duree: str, *, raison: str = None):
+    temps = lire_duree(duree)
+    if temps is None:
+        await ctx.send("❌ Durée invalide. Exemples : `30s`, `10m`, `1h`, `1h30m`, `2j`")
+        return
+    if temps > DUREE_MAX_MUTE:
+        await ctx.send("❌ Discord n'autorise pas plus de 28 jours.")
+        return
+    if membre.guild_permissions.administrator:
+        await ctx.send("❌ Impossible de mute un administrateur.")
+        return
+    if membre == ctx.guild.owner or (ctx.author != ctx.guild.owner and membre.top_role >= ctx.author.top_role):
+        await ctx.send("❌ Tu ne peux pas mute quelqu'un qui a un rôle égal ou supérieur au tien.")
+        return
+
+    try:
+        await membre.timeout(temps, reason=f"Mute par {ctx.author}" + (f" : {raison}" if raison else ""))
+    except discord.Forbidden:
+        await ctx.send("❌ Je n'ai pas le droit de le mute (il me faut « Exclure temporairement des membres » "
+                       "et un rôle plus haut que le sien).")
+        return
+
+    texte = f"🔇 {membre.mention} est mute pendant **{afficher_duree(temps)}**."
+    if raison:
+        texte += f"\n**Raison :** {raison}"
+    await ctx.send(texte)
+
+
+@bot.hybrid_command(name="unmute", description="Enlever le mute d'un membre")
+@commands.guild_only()
+@commands.has_permissions(moderate_members=True)
+async def unmute(ctx, membre: discord.Member):
+    if not membre.is_timed_out():
+        await ctx.send(f"ℹ️ {membre.mention} n'est pas mute.")
+        return
+    try:
+        await membre.timeout(None, reason=f"Unmute par {ctx.author}")
+    except discord.Forbidden:
+        await ctx.send("❌ Je n'ai pas le droit de l'unmute (vérifie mes permissions et la position de mon rôle).")
+        return
+    await ctx.send(f"🔊 {membre.mention} n'est plus mute.")
+
+
+@bot.event
+async def on_command_error(ctx, error):
+    """Messages d'erreur clairs pour les commandes en ."""
+    error = getattr(error, 'original', error)
+    if isinstance(error, commands.CommandNotFound):
+        return  # ex : quelqu'un écrit « ... » ou « .lol »
+    if isinstance(error, commands.MissingPermissions):
+        await ctx.send("❌ Tu n'as pas la permission d'utiliser cette commande.")
+    elif isinstance(error, commands.MissingRequiredArgument):
+        await ctx.send(f"❌ Il manque quelque chose. Exemple : `{EXEMPLES.get(ctx.command.name, '')}`")
+    elif isinstance(error, (commands.MemberNotFound, commands.BadArgument)):
+        await ctx.send("❌ Membre introuvable. Mentionne-le (@pseudo) ou mets son ID.")
+    elif isinstance(error, commands.NoPrivateMessage):
+        pass
+    elif isinstance(error, discord.Forbidden):
+        await ctx.send("❌ Il me manque des permissions (« Gérer les salons » et « Gérer les permissions »).")
+    else:
+        print(f"Erreur dans .{ctx.command}: {error!r}")
+
+
+EXEMPLES = {
+    'mute': ".mute @pseudo 10m raison",
+    'unmute': ".unmute @pseudo",
+}
+
+
 @bot.event
 async def setup_hook():
     # Boutons Accepter / Refuser : on les réactive à chaque démarrage
@@ -631,4 +788,13 @@ if __name__ == "__main__":
         print(f"Crée un fichier .env dans {DOSSIER} avec la ligne : TOKEN=ton_token")
         print("Fichiers trouvés dans ce dossier :", sorted(os.listdir(DOSSIER)))
     else:
-        bot.run(TOKEN)
+        try:
+            bot.run(TOKEN)
+        except discord.PrivilegedIntentsRequired:
+            # « Message Content Intent » pas activé sur le portail : on redémarre sans,
+            # tout marche sauf les commandes en « . » (les versions /lock, /mute marchent)
+            print("⚠️ Active « MESSAGE CONTENT INTENT » sur https://discord.com/developers/applications "
+                  "(onglet Bot) pour que les commandes en « . » marchent. En attendant, utilise /lock, /mute...")
+            bot._connection._intents.message_content = False
+            bot.clear()
+            bot.run(TOKEN)
