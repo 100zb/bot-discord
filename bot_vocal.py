@@ -2,6 +2,7 @@ import datetime
 import json
 import os
 import re
+import sys
 import time
 
 import discord
@@ -23,7 +24,9 @@ FICHIER_DONNEES = os.path.join(DOSSIER, 'donnees_vocal.json')
 # Configuration du bot
 intents = discord.Intents.default()
 intents.voice_states = True
-intents.message_content = True  # pour lire les commandes en « . » (.lock, .mute, ...)
+# Pour lire les commandes en « . » (.lock, .mute, ...). Désactivé tout seul si l'option
+# « Message Content Intent » n'est pas cochée sur le portail développeur.
+intents.message_content = os.getenv('SANS_MESSAGE_CONTENT') != '1'
 
 # « . » ou une mention du bot (« @MonBot lock » marche même sans le Message Content Intent)
 bot = commands.Bot(command_prefix=commands.when_mentioned_or('.'), intents=intents, case_insensitive=True, help_command=None)
@@ -777,12 +780,29 @@ EXEMPLES = {
 
 @bot.event
 async def setup_hook():
+    # Vérifie (avant de se connecter) si « Message Content Intent » est activé sur le portail.
+    # Sinon on s'en passe : les commandes / et « @bot lock » marchent quand même.
+    if bot.intents.message_content:
+        try:
+            drapeaux = (await bot.application_info()).flags
+            if not (drapeaux.gateway_message_content or drapeaux.gateway_message_content_limited):
+                bot._connection._intents.message_content = False
+                print(AVERTISSEMENT_MESSAGE_CONTENT)
+        except discord.HTTPException:
+            pass
+
     # Boutons Accepter / Refuser : on les réactive à chaque démarrage
     bot.add_view(VueModeration())
     for type_message in TYPES_ANONYMES:
         bot.add_view(VueEnvoyer(type_message))
     # Enregistre les commandes slash (/poeme, /confession, ...) auprès de Discord
     await bot.tree.sync()
+
+
+AVERTISSEMENT_MESSAGE_CONTENT = (
+    "⚠️ « MESSAGE CONTENT INTENT » n'est pas activé sur https://discord.com/developers/applications "
+    "(onglet Bot) : les commandes en « . » ne marchent pas. Utilise /lock, /mute... ou « @bot lock »."
+)
 
 
 # Lancer le bot
@@ -796,10 +816,8 @@ if __name__ == "__main__":
         try:
             bot.run(TOKEN)
         except discord.PrivilegedIntentsRequired:
-            # « Message Content Intent » pas activé sur le portail : on redémarre sans,
-            # tout marche sauf les commandes en « . » (les versions /lock, /mute marchent)
-            print("⚠️ Active « MESSAGE CONTENT INTENT » sur https://discord.com/developers/applications "
-                  "(onglet Bot) pour que les commandes en « . » marchent. En attendant, utilise /lock, /mute...")
-            bot._connection._intents.message_content = False
-            bot.clear()
-            bot.run(TOKEN)
+            # Sécurité si la vérification au démarrage n'a pas suffi : on relance le
+            # programme entièrement, cette fois sans « Message Content Intent »
+            print(AVERTISSEMENT_MESSAGE_CONTENT)
+            os.environ['SANS_MESSAGE_CONTENT'] = '1'
+            os.execv(sys.executable, [sys.executable] + sys.argv)
