@@ -858,6 +858,9 @@ AVERTISSEMENT_MESSAGE_CONTENT = (
 )
 
 
+ATTENTE_SI_BLOQUE = 10 * 60  # secondes d'attente si Discord bloque la connexion (erreur 429)
+
+
 # Lancer le bot
 if __name__ == "__main__":
     TOKEN = (os.getenv('TOKEN') or '').strip().strip('"').strip("'")
@@ -873,4 +876,14 @@ if __name__ == "__main__":
             # programme entièrement, cette fois sans « Message Content Intent »
             print(AVERTISSEMENT_MESSAGE_CONTENT)
             os.environ['SANS_MESSAGE_CONTENT'] = '1'
+            os.execv(sys.executable, [sys.executable] + sys.argv)
+        except discord.HTTPException as e:
+            if e.status != 429:
+                raise
+            # Discord bloque temporairement l'adresse de l'hébergeur (souvent à cause des autres
+            # bots hébergés au même endroit). Relancer tout de suite aggrave le blocage :
+            # on attend, puis on relance le programme tout seul.
+            print(f"⏳ Discord bloque temporairement la connexion (429). Nouvel essai dans "
+                  f"{ATTENTE_SI_BLOQUE // 60} minutes, ne redémarre pas le serveur en attendant.", flush=True)
+            time.sleep(ATTENTE_SI_BLOQUE)
             os.execv(sys.executable, [sys.executable] + sys.argv)
