@@ -85,9 +85,35 @@ async def preparer_serveur(guild):
         DONNEES['salons_creation'][str(guild.id)] = salon_creation.id
         sauvegarder_donnees()
 
+    manquantes = permissions_manquantes(salon_creation)
+    if manquantes:
+        print(f"[{guild.name}] ⚠️ Pour « {salon_creation.name} », il me manque : {', '.join(manquantes)} "
+              f"(dans le salon ou sa catégorie)")
+
     for salon in guild.voice_channels:
         if salon.id in DONNEES['vocaux_temporaires'] and len(salon.members) == 0:
             await supprimer_vocal(salon)
+
+
+PERMISSIONS_VOCAL = {
+    'view_channel': "Voir le salon",
+    'connect': "Se connecter",
+    'manage_channels': "Gérer les salons",
+    'move_members': "Déplacer des membres",
+}
+
+
+def permissions_manquantes(salon_creation):
+    """Permissions qui manquent au bot pour créer les vocaux à côté du salon « Créer un vocal »"""
+    manquantes = []
+    for cible in (salon_creation, salon_creation.category):
+        if cible is None:
+            continue
+        perms = cible.permissions_for(cible.guild.me)
+        for attr, nom in PERMISSIONS_VOCAL.items():
+            if not getattr(perms, attr) and nom not in manquantes:
+                manquantes.append(nom)
+    return manquantes
 
 
 def est_salon_creation(salon):
@@ -268,11 +294,13 @@ class FormulaireAnonyme(discord.ui.Modal):
         self.add_item(self.texte)
 
     async def on_submit(self, interaction):
+        # On répond tout de suite à Discord (il n'accorde que 3 secondes), le reste suit
+        await interaction.response.defer(ephemeral=True, thinking=True)
         config = self.config
         salon_public = salon_configure(interaction.guild, config['cle_salon'])
         salon_modos = salon_configure(interaction.guild, config['cle_logs'])
         if salon_public is None or salon_modos is None:
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 f"❌ Les {config['nom']}s ne sont pas encore configuré{config['accorde']}s. Demande à un admin "
                 f"de faire /{config['commande_salon']} et /{config['commande_logs']}.",
                 ephemeral=True,
@@ -291,7 +319,7 @@ class FormulaireAnonyme(discord.ui.Modal):
                 embed=embed, view=VueModeration(), allowed_mentions=discord.AllowedMentions.none()
             )
         except discord.HTTPException:
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 f"❌ Je n'arrive pas à écrire dans le salon de validation des {config['nom']}s (permissions ?).",
                 ephemeral=True,
             )
@@ -302,7 +330,7 @@ class FormulaireAnonyme(discord.ui.Modal):
         dernier_envoi[(self.type_message, interaction.user.id)] = time.monotonic()
 
         e, il = config['accorde'], config['il']
-        await interaction.response.send_message(
+        await interaction.followup.send(
             f"📨 {config['le']} a été envoyé{e} à l'équipe de modération. "
             f"Tu recevras un message privé quand {il} sera accepté{e} ou refusé{e}.\n"
             f"-# Une fois publié{e}, les autres membres ne verront pas ton nom. "
@@ -357,7 +385,7 @@ async def terminer(interaction, demande, statut, couleur, details=""):
     embed.title = f"{config['titre_log']} • {statut}"
     embed.color = couleur
     embed.add_field(name="Décision", value=f"{statut} par {interaction.user.mention}{details}", inline=False)
-    await interaction.response.edit_message(embed=embed, view=None)
+    await interaction.edit_original_response(embed=embed, view=None)
 
 
 async def accepter(interaction, demande):
@@ -382,7 +410,7 @@ async def accepter(interaction, demande):
             pass
     if message is None:
         DONNEES['en_attente'][str(interaction.message.id)] = demande  # on remet en attente
-        await interaction.response.send_message(
+        await interaction.followup.send(
             f"❌ Impossible de publier dans le salon des {config['nom']}s (salon supprimé ou permissions ?).",
             ephemeral=True,
         )
@@ -414,9 +442,15 @@ async def refuser(interaction, demande, raison=None):
     await terminer(interaction, demande, "❌ Refusé" + config['accorde'], COULEUR_REFUSE, details)
 
 
-def prendre_demande(interaction):
-    """Retire la demande de la file d'attente (évite que 2 modos la traitent en même temps)"""
-    return DONNEES['en_attente'].pop(str(interaction.message.id), None)
+async def prendre_demande(interaction):
+    """Retire la demande de la file d'attente (évite que 2 modos la traitent en même temps)
+    et répond tout de suite à Discord (il n'accorde que 3 secondes, le reste suit)."""
+    demande = DONNEES['en_attente'].pop(str(interaction.message.id), None)
+    if demande is None:
+        await deja_traitee(interaction)
+    else:
+        await interaction.response.defer()
+    return demande
 
 
 async def deja_traitee(interaction):
@@ -429,9 +463,8 @@ class FormulaireRaison(discord.ui.Modal, title="Refuser avec une raison"):
     )
 
     async def on_submit(self, interaction):
-        demande = prendre_demande(interaction)
+        demande = await prendre_demande(interaction)
         if demande is None:
-            await deja_traitee(interaction)
             return
         await refuser(interaction, demande, self.raison.value)
 
@@ -452,17 +485,15 @@ class VueModeration(discord.ui.View):
 
     @discord.ui.button(label="Accepter", emoji="✅", style=discord.ButtonStyle.success, custom_id="anonyme:accepter")
     async def bouton_accepter(self, interaction, button):
-        demande = prendre_demande(interaction)
+        demande = await prendre_demande(interaction)
         if demande is None:
-            await deja_traitee(interaction)
             return
         await accepter(interaction, demande)
 
     @discord.ui.button(label="Refuser", emoji="❌", style=discord.ButtonStyle.danger, custom_id="anonyme:refuser")
     async def bouton_refuser(self, interaction, button):
-        demande = prendre_demande(interaction)
+        demande = await prendre_demande(interaction)
         if demande is None:
-            await deja_traitee(interaction)
             return
         await refuser(interaction, demande)
 
@@ -600,6 +631,28 @@ async def salon_confessions(interaction, salon: discord.TextChannel):
 async def salon_logs_confessions(interaction, salon: discord.TextChannel):
     await configurer_salon(interaction, 'salons_logs_confessions', salon,
                            "✅ Les confessions (avec leur auteur) arriveront dans {salon} pour validation." + AVERTISSEMENT_LOGS)
+
+
+# --- Salon « Créer un vocal » ---
+
+@bot.tree.command(name="salon_vocal", description="Choisir le salon « Créer un vocal » et vérifier mes permissions")
+@discord.app_commands.guild_only()
+@discord.app_commands.default_permissions(administrator=True)
+@discord.app_commands.describe(salon="Le vocal que les gens rejoignent pour créer leur propre vocal")
+async def salon_vocal(interaction, salon: discord.VoiceChannel):
+    DONNEES['salons_creation'][str(interaction.guild_id)] = salon.id
+    sauvegarder_donnees()
+    texte = f"✅ {salon.mention} est maintenant le salon pour créer des vocaux"
+    texte += f" (les vocaux seront créés dans **{salon.category.name}**)." if salon.category else "."
+    manquantes = permissions_manquantes(salon)
+    if manquantes:
+        texte += ("\n⚠️ **Ça ne marchera pas encore** : il me manque "
+                  + ", ".join(f"« {nom} »" for nom in manquantes)
+                  + " dans ce salon ou sa catégorie. Ajoute mon rôle dans les permissions de la catégorie "
+                  "et coche ces cases (ou donne-moi « Administrateur »).")
+    else:
+        texte += "\n👍 J'ai toutes les permissions nécessaires."
+    await interaction.response.send_message(texte, ephemeral=True)
 
 
 # --- Photo de profil du bot ---
